@@ -85,6 +85,14 @@ function RootNavigator() {
           name="capture/[id]"
           options={{ headerShown: true, title: 'Review scan', headerBackTitle: 'Back' }}
         />
+        <Stack.Screen
+          name="shopping/review"
+          options={{ headerShown: true, title: 'Finish purchase', headerBackTitle: 'List' }}
+        />
+        <Stack.Screen
+          name="shopping/history"
+          options={{ headerShown: true, title: 'Past trips', headerBackTitle: 'List' }}
+        />
       </Stack>
     </>
   );

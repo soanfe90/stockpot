@@ -3,11 +3,12 @@
 An expiry-driven pantry. It tracks what a household holds, what is about to
 turn, and — from phase 4 — what to cook with it tonight.
 
-**Phases 1 (ledger) and 2 (capture) are implemented.** Auth, shared households,
-the product catalog, dated inventory lots, search, filters, the stock summary,
-an append-only movement log — and photographing a receipt or your groceries into
-a reviewable draft tray that learns from every correction. Shopping list,
-planning and library follow.
+**Phases 1–3 are implemented.** The ledger (auth, shared households, the product
+catalog, dated inventory lots, search, filters, the stock summary, an
+append-only movement log), capture (photographing a receipt or your groceries
+into a reviewable draft tray that learns from every correction), and the
+shopping list (which writes itself from the ledger and writes back into it).
+Planning and the library follow.
 
 ## Setup
 
@@ -77,6 +78,26 @@ Photograph a till roll or the shopping on the counter. The scan produces a
 - **Units that cannot mean the same thing are refused.** Merging "2 ud" into a
   product tracked by volume raises instead of silently writing 2 ml.
 
+## What the shopping list does
+
+It is assembled from the ledger, not typed:
+
+- **Four reasons put something on it**: it ran out, it fell below its low
+  threshold, it is within three days of turning, or someone added it. A fifth —
+  a gap in an approved meal plan — is in the schema and waits for phase 4.
+- **Suggested quantities come from your own history.** What the household
+  actually bought last time beats any default; the low threshold fills in until
+  there is a purchase to learn from.
+- **Refresh never undoes what a person did.** Ticking or editing a row pins it,
+  and pinned, ticked and manual rows survive every recompute — the app must not
+  rearrange the list while someone is standing in an aisle.
+- **It is live across the household**, so two people in two aisles don't buy the
+  same thing twice.
+- **Closing a trip goes through `add_stock`**, so bought items get lots and
+  inferred expiry like anything else, and the trip is archived with its item
+  snapshot and total.
+- **Unfound items roll onto the next list** rather than vanishing.
+
 ## What phase 1 gives you
 
 - **Households, not users.** Everything belongs to a household; members join
@@ -123,6 +144,6 @@ src/app/               expo-router routes
 
 ## Next
 
-Phase 3 is the shopping list: it assembles itself from what ran out, ran low, or
-is about to expire, works as a live shared checklist, and closes out through the
-same commit path the draft tray uses.
+Phase 4 is planning and cooking: generating a plan from what is actually in
+stock, a schedule with reminders, cook mode, and deduction on finishing. That is
+where `reserved_qty` and the `recipe_gap` list source finally get used.

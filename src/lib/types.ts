@@ -126,3 +126,64 @@ export type CommitSummary = {
   lines_skipped: number;
   aliases_learned: number;
 };
+
+/* ------------------------------------------------------------ shopping --- */
+
+export type ShoppingStatus = 'open' | 'shopping' | 'closed';
+export type ItemSource = 'out_of_stock' | 'low' | 'expiring' | 'recipe_gap' | 'manual';
+
+export type ShoppingList = {
+  id: string;
+  household_id: string;
+  status: ShoppingStatus;
+  opened_at: string;
+  closed_at: string | null;
+};
+
+export type ShoppingItem = {
+  id: string;
+  list_id: string;
+  household_id: string;
+  product_id: string | null;
+  name: string;
+  /** In the product's base unit, like everything else in the ledger. */
+  qty: number;
+  display_unit: string;
+  base_unit: BaseUnit;
+  category: string;
+  source: ItemSource;
+  needed_by: string | null;
+  checked: boolean;
+  purchased_qty: number | null;
+  /** True once a person has edited or ticked the row; refresh leaves it be. */
+  pinned: boolean;
+  note: string | null;
+  position: number;
+  created_at: string;
+};
+
+export type Purchase = {
+  id: string;
+  household_id: string;
+  list_id: string | null;
+  store: string | null;
+  total: number | null;
+  items: { product_id: string; name: string; qty: number; display_unit: string; source: ItemSource }[];
+  closed_by: string | null;
+  closed_at: string;
+};
+
+export type PurchaseResult = {
+  items_added: number;
+  products_created: number;
+  rolled_over: number;
+  next_list_id: string;
+};
+
+export const SOURCE_LABELS: Record<ItemSource, string> = {
+  out_of_stock: 'Out of stock',
+  low: 'Running low',
+  expiring: 'Replacing',
+  recipe_gap: 'For a meal',
+  manual: 'Added by you',
+};

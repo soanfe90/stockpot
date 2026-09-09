@@ -26,6 +26,11 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   database is the authority — it is where stock is actually written.
 - **Model calls run in Edge Functions, never the client.** `ANTHROPIC_API_KEY`
   must not reach the app bundle; `EXPO_PUBLIC_*` vars are inlined into it.
+- **`refresh_shopping_list` must never touch a pinned, ticked or manual row.**
+  Editing or ticking sets `pinned`. Rewriting the list under someone mid-trip is
+  the worst thing this feature can do.
+- **`needs_restocking()` is the single definition of what belongs on the list.**
+  Both the upsert and the cleanup read it, so they cannot disagree.
 
 ## Layout
 
@@ -41,6 +46,7 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
 
 ## Phase status
 
-Phases 1 (ledger) and 2 (capture) are built. Phases 3-5 — shopping list, plan
-and cook, library — are specified but not implemented; their tabs are
-placeholders.
+Phases 1 (ledger), 2 (capture) and 3 (shopping list) are built. Phases 4-5 —
+plan and cook, library — are specified but not implemented; their tabs are
+placeholders. `reserved_qty` and the `recipe_gap` item source exist in the
+schema for phase 4 and are unused until then.
