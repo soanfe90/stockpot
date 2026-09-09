@@ -1,17 +1,25 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { supabase } from '@/lib/supabase';
-import type { Household, MemberRole } from '@/lib/types';
+import type { Household, MemberRole, UserProfile } from '@/lib/types';
 
 import { useSession } from './session-provider';
+
+type Preferences = {
+  diets: string[];
+  cuisines: string[];
+  goals: string[];
+};
 
 type HouseholdContextValue = {
   household: Household | null;
   role: MemberRole | null;
+  profile: UserProfile | null;
   loading: boolean;
   refresh: () => Promise<void>;
   createHousehold: (name: string, size: number) => Promise<void>;
   joinHousehold: (inviteCode: string) => Promise<void>;
+  savePreferences: (prefs: Preferences) => Promise<void>;
 };
 
 const HouseholdContext = createContext<HouseholdContextValue | null>(null);
@@ -22,16 +30,26 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
 
   const [household, setHousehold] = useState<Household | null>(null);
   const [role, setRole] = useState<MemberRole | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     if (!userId) {
       setHousehold(null);
       setRole(null);
+      setProfile(null);
       setLoading(false);
       return;
     }
     setLoading(true);
+
+    const { data: profileRow } = await supabase
+      .from('user_profile')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+    setProfile((profileRow as UserProfile) ?? null);
+
     // A user can belong to several households; the oldest membership wins
     // until there is a switcher to choose between them.
     const { data, error } = await supabase
@@ -77,9 +95,22 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     [refresh]
   );
 
+  const savePreferences = useCallback(
+    async ({ diets, cuisines, goals }: Preferences) => {
+      const { error } = await supabase.rpc('save_preferences', {
+        p_diet_types: diets,
+        p_cuisines: cuisines,
+        p_goals: goals,
+      });
+      if (error) throw error;
+      await refresh();
+    },
+    [refresh]
+  );
+
   const value = useMemo<HouseholdContextValue>(
-    () => ({ household, role, loading, refresh, createHousehold, joinHousehold }),
-    [household, role, loading, refresh, createHousehold, joinHousehold]
+    () => ({ household, role, profile, loading, refresh, createHousehold, joinHousehold, savePreferences }),
+    [household, role, profile, loading, refresh, createHousehold, joinHousehold, savePreferences]
   );
 
   return <HouseholdContext.Provider value={value}>{children}</HouseholdContext.Provider>;

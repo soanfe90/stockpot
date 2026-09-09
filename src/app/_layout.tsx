@@ -25,15 +25,15 @@ export default function RootLayout() {
 }
 
 /**
- * Three gates, in order: signed in, then in a household, then the app.
- * Everything downstream can assume both, which is why no other screen
- * checks for a null session.
+ * Four gates, in order: signed in, in a household, asked about preferences,
+ * then the app. Everything downstream can assume all of them, which is why no
+ * other screen checks for a null session.
  */
 function RootNavigator() {
   const scheme = useColorScheme();
   const t = themes[scheme === 'dark' ? 'dark' : 'light'];
   const { session, loading: sessionLoading } = useSession();
-  const { household, loading: householdLoading } = useHousehold();
+  const { household, profile, loading: householdLoading } = useHousehold();
   const segments = useSegments();
   const router = useRouter();
 
@@ -49,15 +49,20 @@ function RootNavigator() {
     const root = segments[0] as string | undefined;
     const onSignIn = root === 'sign-in';
     const onOnboarding = root === 'household';
+    const onPreferences = root === 'preferences';
 
     if (!session) {
       if (!onSignIn) router.replace('/sign-in');
     } else if (!household) {
       if (!onOnboarding) router.replace('/household');
+    } else if (!profile?.onboarded_at) {
+      if (!onPreferences) router.replace('/preferences');
     } else if (onSignIn || onOnboarding) {
+      // Preferences stay reachable once answered -- this is also the edit
+      // screen, so it must not bounce anyone back out.
       router.replace('/');
     }
-  }, [ready, session, household, segments, router]);
+  }, [ready, session, household, profile, segments, router]);
 
   if (!ready) return <Loading />;
 
@@ -72,6 +77,10 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="household" />
+        <Stack.Screen
+          name="preferences"
+          options={{ headerShown: true, title: 'Preferences', headerBackTitle: 'Back' }}
+        />
         <Stack.Screen
           name="product/new"
           options={{ presentation: 'modal', headerShown: true, title: 'Add product' }}

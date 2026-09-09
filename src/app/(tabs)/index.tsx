@@ -89,6 +89,13 @@ export default function InventoryScreen() {
               {summary.total} products · invite code {household?.invite_code}
             </Text>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Preferences"
+            onPress={() => router.push('/preferences')}
+            hitSlop={10}>
+            <Text style={{ color: t.accentText, fontSize: 13, fontWeight: '600' }}>Preferences</Text>
+          </Pressable>
         </View>
 
         <SearchBar

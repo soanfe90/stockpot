@@ -144,6 +144,12 @@ It is assembled from the ledger, not typed:
 - **Households, not users.** Everything belongs to a household; members join
   with a six-character invite code. Access is enforced by Postgres row-level
   security, not by the client.
+- **Preferences are personal.** Diet, cuisines and goals are asked once at
+  signup and editable any time; two people sharing a pantry can want different
+  things from it. A plan can override them without touching what is saved.
+- **Low-stock thresholds are per product.** Set one and the product joins the
+  shopping list as running low before it runs out; leave it blank and you are
+  told only when it is gone.
 - **Products vs. lots.** A product is the catalog entry ("whole milk"); a lot is
   a real quantity with a real date. Two cartons bought a week apart stay two
   lots, so the expiry engine has something to work with.

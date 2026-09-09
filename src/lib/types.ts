@@ -14,6 +14,19 @@ export type MovementReason = 'purchase' | 'cook' | 'waste' | 'correction';
 
 export const STORAGE_PLACES: StoragePlace[] = ['fridge', 'freezer', 'pantry'];
 
+export type UserProfile = {
+  user_id: string;
+  display_name: string | null;
+  diet_types: string[];
+  cuisines: string[];
+  goals: string[];
+  allergens: string[];
+  /** Null until the preference questions have been answered. Empty arrays are
+   *  a valid answer, so they cannot stand in for "not asked yet". */
+  onboarded_at: string | null;
+  created_at: string;
+};
+
 export type Household = {
   id: string;
   name: string;

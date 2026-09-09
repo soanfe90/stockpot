@@ -25,6 +25,7 @@ export default function ProductScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [lowThreshold, setLowThreshold] = useState('');
   const [addQty, setAddQty] = useState('');
   const [addExpiry, setAddExpiry] = useState('');
   const [addStorage, setAddStorage] = useState<StoragePlace>('pantry');
@@ -49,6 +50,11 @@ export default function ProductScreen() {
       setLots((lotRes.data ?? []) as InventoryLot[]);
       setAddStorage(loaded.storage);
       setAddExpiry(isoDateIn(loaded.default_useful_life_days));
+      setLowThreshold(
+        loaded.low_threshold > 0
+          ? String(fromBase(loaded.low_threshold, loaded.base_unit, loaded.display_unit))
+          : ''
+      );
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -111,6 +117,31 @@ export default function ProductScreen() {
         p_target: toBase(value, product.base_unit, product.display_unit),
       });
       if (rpcError) throw rpcError;
+      await load();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Below this, the shopping list picks the product up as running low. Zero
+   *  turns that off, leaving only the out-of-stock trigger. */
+  async function saveLowThreshold() {
+    if (!product) return;
+    const value = lowThreshold.trim() ? parseQty(lowThreshold) : 0;
+    if (value === null) {
+      setError('That is not a number.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { error: updateError } = await supabase
+        .from('product')
+        .update({ low_threshold: value ? toBase(value, product.base_unit, product.display_unit) : 0 })
+        .eq('id', product.id);
+      if (updateError) throw updateError;
       await load();
     } catch (e) {
       setError(errorMessage(e));
@@ -223,6 +254,22 @@ export default function ProductScreen() {
               onChange={setAddStorage}
             />
             <Button label="Add stock" onPress={addStock} busy={busy} />
+          </View>
+        </Card>
+
+        <Card>
+          <View style={{ gap: space.lg }}>
+            <Eyebrow>Running low</Eyebrow>
+            <Field
+              label="Tell me when it drops below"
+              value={lowThreshold}
+              onChangeText={setLowThreshold}
+              keyboardType="decimal-pad"
+              suffix={product.display_unit}
+              placeholder="0"
+              hint="Leave blank to be told only when it runs out entirely."
+            />
+            <Button label="Save" variant="secondary" onPress={saveLowThreshold} busy={busy} />
           </View>
         </Card>
 

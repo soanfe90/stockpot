@@ -15,12 +15,13 @@ export default function CreatePlanScreen() {
   const t = useTokens();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { household } = useHousehold();
+  const { household, profile } = useHousehold();
 
   const [scope, setScope] = useState<PlanScope>('day');
-  const [diets, setDiets] = useState<string[]>([]);
-  const [cuisines, setCuisines] = useState<string[]>([]);
-  const [goals, setGoals] = useState<string[]>([]);
+  // Seeded from the saved profile; changes here apply to this plan only.
+  const [diets, setDiets] = useState<string[]>(profile?.diet_types ?? []);
+  const [cuisines, setCuisines] = useState<string[]>(profile?.cuisines ?? []);
+  const [goals, setGoals] = useState<string[]>(profile?.goals ?? []);
   const [servings, setServings] = useState(String(household?.size ?? 2));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

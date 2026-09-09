@@ -27,6 +27,7 @@ export default function NewProductScreen() {
   const [usefulLife, setUsefulLife] = useState(String(DEFAULT_USEFUL_LIFE.Produce));
   const [expiry, setExpiry] = useState(isoDateIn(DEFAULT_USEFUL_LIFE.Produce));
   const [storage, setStorage] = useState<StoragePlace>('fridge');
+  const [lowThreshold, setLowThreshold] = useState('');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +85,12 @@ export default function NewProductScreen() {
       return;
     }
 
+    const low = lowThreshold.trim() ? parseQty(lowThreshold) : 0;
+    if (low === null) {
+      setError('The low-stock amount is not a number.');
+      return;
+    }
+
     setBusy(true);
     try {
       const { data: product, error: insertError } = await supabase
@@ -95,6 +102,7 @@ export default function NewProductScreen() {
           base_unit: baseUnit,
           display_unit: unitKey,
           default_useful_life_days: life,
+          low_threshold: low ? toBase(low, baseUnit, unitKey) : 0,
           storage,
           notes: notes.trim() || null,
         })
@@ -190,6 +198,16 @@ export default function NewProductScreen() {
             />
           </View>
         </Card>
+
+        <Field
+          label="Tell me when it drops below"
+          value={lowThreshold}
+          onChangeText={setLowThreshold}
+          keyboardType="decimal-pad"
+          suffix={unitKey}
+          placeholder="0"
+          hint="Optional. Below this, the product joins your shopping list as running low. Leave blank to be told only when it runs out."
+        />
 
         <Segmented
           label="Stored in"
