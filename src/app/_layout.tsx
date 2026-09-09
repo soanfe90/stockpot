@@ -105,6 +105,10 @@ function RootNavigator() {
           name="cook/[id]"
           options={{ headerShown: true, title: 'Cooking', headerBackTitle: 'Meals' }}
         />
+        <Stack.Screen
+          name="recipe/[id]"
+          options={{ headerShown: true, title: 'Recipe', headerBackTitle: 'Library' }}
+        />
       </Stack>
     </>
   );

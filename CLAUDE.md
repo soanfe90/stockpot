@@ -38,6 +38,13 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
 - **Only `finish_cooking` removes stock for a meal.** Approving reserves,
   skipping and cancelling release. Every one of those goes through the database
   under a row lock.
+- **Adapting a recipe forks it.** Write a new row with `parent_recipe_id`; never
+  edit a recipe that has been cooked. The library must keep what was actually
+  made.
+- **A template is a suggestion, not a copy.** `apply_template` produces a draft
+  that is re-checked against the pantry as it is on the day it is applied.
+- **`meal_hour()` in SQL and `MEAL_HOUR` in generate-plan must agree** — both
+  decide when a meal lands on the schedule.
 
 ## Layout
 
@@ -53,6 +60,6 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
 
 ## Phase status
 
-Phases 1-4 are built: the ledger, capture, the shopping list, and planning and
-cooking. Phase 5 — the recipe library — is specified but not implemented; its
-tab is a placeholder.
+All five phases are built: the ledger, capture, the shopping list, planning and
+cooking, and the library. The loop closes — buy, stock, plan, cook, deplete,
+restock.

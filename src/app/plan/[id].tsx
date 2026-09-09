@@ -4,6 +4,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, ErrorNote, Eyebrow, Loading } from '@/components/ui/kit';
+import { savePlanAsTemplate } from '@/lib/library';
 import { scheduleReminders } from '@/lib/notifications';
 import { addPlanGaps, approvePlan, cancelPlan, loadPlan, loadSchedule, mealLabel } from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
@@ -70,6 +71,30 @@ export default function ReviewPlanScreen() {
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Saving a plan is how the library gets reusable weeks. The default name
+   *  is the date, because naming things is a chore nobody wants mid-flow. */
+  function saveAsTemplate() {
+    if (!id || !plan) return;
+    const defaultName = `${plan.scope === 'week' ? 'Week of' : 'Plan for'} ${new Date(
+      `${plan.starts_on}T00:00:00`
+    ).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}`;
+
+    Alert.alert('Save this plan?', `It will appear in your library as "${defaultName}", ready to apply to a future date.`, [
+      { text: 'Not now', style: 'cancel' },
+      {
+        text: 'Save',
+        onPress: async () => {
+          try {
+            await savePlanAsTemplate(id, defaultName);
+            Alert.alert('Saved', 'You can apply it to any future date from the library.');
+          } catch (e) {
+            setError(errorMessage(e));
+          }
+        },
+      },
+    ]);
   }
 
   function discard() {
@@ -172,25 +197,29 @@ export default function ReviewPlanScreen() {
         ))}
       </ScrollView>
 
-      {!approved ? (
-        <View
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            gap: space.sm,
-            paddingHorizontal: space.lg,
-            paddingTop: space.md,
-            paddingBottom: insets.bottom + space.md,
-            backgroundColor: t.ground,
-            borderTopWidth: StyleSheet.hairlineWidth * 2,
-            borderTopColor: t.line,
-          }}>
-          <Button label="Approve and reserve ingredients" onPress={approve} busy={busy} />
-          <Button label="Discard" variant="ghost" onPress={discard} />
-        </View>
-      ) : null}
+      <View
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          gap: space.sm,
+          paddingHorizontal: space.lg,
+          paddingTop: space.md,
+          paddingBottom: insets.bottom + space.md,
+          backgroundColor: t.ground,
+          borderTopWidth: StyleSheet.hairlineWidth * 2,
+          borderTopColor: t.line,
+        }}>
+        {approved ? (
+          <Button label="Save as a reusable plan" variant="secondary" onPress={saveAsTemplate} />
+        ) : (
+          <>
+            <Button label="Approve and reserve ingredients" onPress={approve} busy={busy} />
+            <Button label="Discard" variant="ghost" onPress={discard} />
+          </>
+        )}
+      </View>
     </View>
   );
 }

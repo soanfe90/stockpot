@@ -3,10 +3,9 @@
 An expiry-driven pantry. It tracks what a household holds, what is about to
 turn, and — from phase 4 — what to cook with it tonight.
 
-**Phases 1–4 are implemented.** The ledger, capture, the shopping list, and now
-planning and cooking — generating meals from what is actually in stock,
-reserving their ingredients, and deducting what was really used when you finish.
-The recipe library (phase 5) follows.
+**All five phases are implemented.** The ledger, capture, the shopping list,
+planning and cooking, and the library — the loop closes: buy, stock, plan, cook,
+deplete, restock.
 
 ## Setup
 
@@ -44,6 +43,7 @@ in the app bundle:
 npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 npx supabase functions deploy scan-capture
 npx supabase functions deploy generate-plan
+npx supabase functions deploy adapt-recipe
 ```
 
 The `captures` storage bucket and its policies are created by the migrations.
@@ -76,6 +76,25 @@ Photograph a till roll or the shopping on the counter. The scan produces a
   log all behave identically.
 - **Units that cannot mean the same thing are refused.** Merging "2 ud" into a
   product tracked by volume raises instead of silently writing 2 ml.
+
+## What the library does
+
+Everything cooked is kept, so it can be cooked again:
+
+- **Stats come from what was actually cooked**, not what was planned — times
+  cooked, average rating, last made. Most-cooked and highest-rated together are
+  the household's real taste profile, and both are fed back into generation.
+- **Reuse puts a recipe back on the schedule as a draft.** Approving is what
+  reserves stock, so anything missing goes through the same shortfall machinery
+  and lands on the shopping list.
+- **Adapting forks rather than edits.** Refitting a recipe to today's pantry
+  creates a new version linked to its parent, so the library always holds the
+  version that was really cooked. The adaptation is checked by the same budget
+  enforcer the planner uses.
+- **A day or a week can be saved as a template.** Applying it to a future date
+  produces a *draft* re-checked against the pantry as it is then — same rhythm,
+  swapped ingredients where stock has moved on. A recipe deleted since the
+  template was saved is skipped rather than failing the whole apply.
 
 ## What planning does
 
@@ -171,8 +190,19 @@ src/components/        UI kit and inventory components
 src/app/               expo-router routes
 ```
 
-## Next
+## Where it stands
 
-Phase 5 is the library: browsing and filtering everything cooked, reusing a
-saved recipe into the schedule with gap detection, adapting one to current
-stock, and saving whole days and weeks as reusable templates.
+The loop is closed end to end, and the database rules are exercised by 60
+assertions against real Postgres plus unit tests over the plan budget enforcer.
+
+Three things remain unverified and want a real environment before you trust
+them:
+
+- **The Edge Functions have never executed.** They are written against the
+  documented SDK surface, but none has run.
+- **Nothing has run on a device.** Notifications especially — local reminders
+  should work in Expo Go on Android; iOS may need a development build.
+- **Prompt quality is unmeasured.** The guards guarantee a scan or a plan will
+  not lie about your stock. They guarantee nothing about whether the readings
+  are accurate or the meals are any good. Feed it twenty real receipts and a
+  week of real planning, and tune the prompts from what comes back.

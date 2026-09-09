@@ -292,3 +292,37 @@ export type CookDeduction = {
   taken: number;
   unit: string;
 };
+
+/* ------------------------------------------------------------- library --- */
+
+export type RecipeStats = {
+  recipe_id: string;
+  household_id: string;
+  times_cooked: number;
+  avg_rating: number | null;
+  last_cooked: string | null;
+};
+
+export type LibraryRecipe = Recipe & {
+  times_cooked: number;
+  avg_rating: number | null;
+  last_cooked: string | null;
+  favourite: boolean;
+};
+
+export type PlanTemplate = {
+  id: string;
+  household_id: string;
+  name: string;
+  scope: PlanScope;
+  shape: { day_offset: number; category: MealCategory; recipe_id: string; servings: number }[];
+  times_used: number;
+  created_at: string;
+};
+
+export type AdaptResult = {
+  recipe_id: string;
+  parent_recipe_id: string;
+  /** What changed, in plain language, for the user to accept or reject. */
+  changes: string[];
+};
