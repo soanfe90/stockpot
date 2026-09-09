@@ -1,0 +1,13 @@
+{
+  "//": "Edge Functions run on Deno, not on the app's React Native toolchain. The app's tsconfig excludes this directory; check these with `deno check` or `supabase functions serve`.",
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["deno.window", "esnext"]
+  },
+  "imports": {
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@0.124.0",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
+    "@std/encoding": "jsr:@std/encoding@^1",
+    "zod": "npm:zod@4.6.1"
+  }
+}

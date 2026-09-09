@@ -18,6 +18,14 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
 - **Sort by days-to-expiry first**, everywhere. That is the product's whole idea.
 - Every colour is defined for both light and dark in `themes`. A value present in
   only one scheme is a bug.
+- **A capture never writes stock.** Scanning fills `draft_line` rows; only
+  `commit_capture` writes, and it does so through `add_stock`.
+- **Unit tables live in three places and must agree**: `DISPLAY_UNITS` in
+  `src/lib/units.ts`, `to_base_qty` / `base_of_display_unit` in the capture
+  migration, and the `UNITS` enum in `supabase/functions/scan-capture`. The
+  database is the authority — it is where stock is actually written.
+- **Model calls run in Edge Functions, never the client.** `ANTHROPIC_API_KEY`
+  must not reach the app bundle; `EXPO_PUBLIC_*` vars are inlined into it.
 
 ## Layout
 
@@ -28,8 +36,11 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
     src/hooks/             data fetching, filtering, summary
     src/components/        UI kit + inventory-specific components
     src/app/               expo-router routes
+    supabase/functions/    Deno Edge Functions (excluded from the app tsconfig)
+    supabase/tests/        migrations + behavioural assertions vs real Postgres
 
 ## Phase status
 
-Phase 1 (ledger) is built. Phases 2-5 — capture, shopping list, plan and cook,
-library — are specified but not implemented; their tabs are placeholders.
+Phases 1 (ledger) and 2 (capture) are built. Phases 3-5 — shopping list, plan
+and cook, library — are specified but not implemented; their tabs are
+placeholders.

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   ActiveFilterChips,
+  AddSheet,
   FilterSheet,
   SearchBar,
   SummarySheet,
@@ -38,6 +39,7 @@ export default function InventoryScreen() {
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const visible = useMemo(() => applyFilters(products, aliases, filters), [products, aliases, filters]);
@@ -138,8 +140,8 @@ export default function InventoryScreen() {
           products.length === 0 ? (
             <EmptyState
               title="Nothing in the pantry yet"
-              body="Add what you already have and Stockpot starts tracking what is about to turn. Scanning receipts arrives in the next phase."
-              action={<Button label="Add your first product" onPress={() => router.push('/product/new')} />}
+              body="Photograph a receipt and Stockpot fills the pantry in one go, then starts tracking what is about to turn."
+              action={<Button label="Scan a receipt" onPress={() => router.push('/capture/camera')} />}
             />
           ) : (
             <EmptyState
@@ -183,7 +185,7 @@ export default function InventoryScreen() {
           }}>
           <Text style={{ color: t.inkMuted, fontSize: 17, fontWeight: '700' }}>i</Text>
         </Pressable>
-        <Button label="Add product" onPress={() => router.push('/product/new')} style={{ flex: 1 }} />
+        <Button label="Add products" onPress={() => setShowAdd(true)} style={{ flex: 1 }} />
       </View>
 
       <FilterSheet
@@ -193,6 +195,19 @@ export default function InventoryScreen() {
         onClose={() => setShowFilters(false)}
         onCollapseAll={() => setCollapsed(sections.map((s) => s.title))}
         onExpandAll={() => setCollapsed([])}
+      />
+
+      <AddSheet
+        visible={showAdd}
+        onClose={() => setShowAdd(false)}
+        onScan={() => {
+          setShowAdd(false);
+          router.push('/capture/camera');
+        }}
+        onManual={() => {
+          setShowAdd(false);
+          router.push('/product/new');
+        }}
       />
 
       <SummarySheet

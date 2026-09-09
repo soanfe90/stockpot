@@ -330,3 +330,72 @@ function Sheet({
     </Modal>
   );
 }
+
+/* ------------------------------------------------------------ add sheet -- */
+
+/** The two ways stock gets in. Scanning leads because it is the reason the
+ *  app exists; typing stays one tap away for the odd single item. */
+export function AddSheet({
+  visible,
+  onClose,
+  onScan,
+  onManual,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onScan: () => void;
+  onManual: () => void;
+}) {
+  const t = useTokens();
+  return (
+    <Sheet visible={visible} onClose={onClose} title="Add products">
+      <View style={{ gap: space.md }}>
+        <Choice
+          title="Scan a receipt or your groceries"
+          body="Photograph the till roll, or the shopping on the counter. Everything lands in a list you check before it is added."
+          onPress={onScan}
+          primary
+        />
+        <Choice
+          title="Add one by hand"
+          body="Name, quantity, and a shelf life. Best for a single item, or something with no packaging."
+          onPress={onManual}
+        />
+      </View>
+      <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17, marginTop: space.md }}>
+        Corrections you make to a scan are remembered against the product, so the same shop reads more accurately
+        every time.
+      </Text>
+    </Sheet>
+  );
+}
+
+function Choice({
+  title,
+  body,
+  onPress,
+  primary,
+}: {
+  title: string;
+  body: string;
+  onPress: () => void;
+  primary?: boolean;
+}) {
+  const t = useTokens();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => ({
+        padding: space.lg,
+        gap: 5,
+        borderRadius: radius.md,
+        borderWidth: StyleSheet.hairlineWidth * 2,
+        borderColor: primary ? t.accent : t.line,
+        backgroundColor: pressed ? t.surfaceAlt : primary ? t.accentWash : t.surface,
+      })}>
+      <Text style={{ fontSize: 15.5, fontWeight: '700', color: primary ? t.accentText : t.ink }}>{title}</Text>
+      <Text style={{ fontSize: 13, lineHeight: 19, color: t.inkMuted }}>{body}</Text>
+    </Pressable>
+  );
+}

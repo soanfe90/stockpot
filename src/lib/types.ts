@@ -77,3 +77,52 @@ export type StockedProduct = Product & {
   next_expiry: string | null;
   lot_count: number;
 };
+
+/* ------------------------------------------------------------- capture --- */
+
+export type CaptureKind = 'receipt' | 'products';
+export type CaptureStatus = 'uploaded' | 'scanning' | 'ready' | 'committed' | 'failed';
+export type LineResolution = 'merge' | 'new' | 'skip';
+
+export type Capture = {
+  id: string;
+  household_id: string;
+  kind: CaptureKind;
+  image_path: string | null;
+  status: CaptureStatus;
+  store: string | null;
+  purchased_on: string | null;
+  error: string | null;
+  created_by: string | null;
+  created_at: string;
+  committed_at: string | null;
+};
+
+/** One editable row in the draft tray. Nothing here has touched inventory. */
+export type DraftLine = {
+  id: string;
+  capture_id: string;
+  household_id: string;
+  raw_text: string | null;
+  name: string;
+  qty: number;
+  display_unit: string;
+  base_unit: BaseUnit;
+  category: string;
+  unit_price: number | null;
+  expires_on: string | null;
+  storage: StoragePlace | null;
+  matched_product_id: string | null;
+  confidence: number | null;
+  resolution: LineResolution;
+  skip_reason: string | null;
+  position: number;
+  created_at: string;
+};
+
+export type CommitSummary = {
+  products_created: number;
+  lines_committed: number;
+  lines_skipped: number;
+  aliases_learned: number;
+};

@@ -21,4 +21,7 @@ done
 
 echo "running ledger smoke test"
 psql -q -v ON_ERROR_STOP=1 -f supabase/tests/01_ledger_smoke.sql
+
+echo "running capture smoke test"
+psql -q -v ON_ERROR_STOP=1 -f supabase/tests/02_capture_smoke.sql
 echo "all checks passed"

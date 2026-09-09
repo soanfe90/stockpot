@@ -77,6 +77,14 @@ function RootNavigator() {
           options={{ presentation: 'modal', headerShown: true, title: 'Add product' }}
         />
         <Stack.Screen name="product/[id]" options={{ headerShown: true, title: 'Product' }} />
+        <Stack.Screen
+          name="capture/camera"
+          options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="capture/[id]"
+          options={{ headerShown: true, title: 'Review scan', headerBackTitle: 'Back' }}
+        />
       </Stack>
     </>
   );

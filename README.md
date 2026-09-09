@@ -3,9 +3,11 @@
 An expiry-driven pantry. It tracks what a household holds, what is about to
 turn, and — from phase 4 — what to cook with it tonight.
 
-**Phase 1 (ledger) is implemented.** Auth, shared households, the product
-catalog, dated inventory lots, search, filters, the stock summary, and an
-append-only movement log. Capture, shopping list, planning and library follow.
+**Phases 1 (ledger) and 2 (capture) are implemented.** Auth, shared households,
+the product catalog, dated inventory lots, search, filters, the stock summary,
+an append-only movement log — and photographing a receipt or your groceries into
+a reviewable draft tray that learns from every correction. Shopping list,
+planning and library follow.
 
 ## Setup
 
@@ -34,7 +36,19 @@ alter publication supabase_realtime add table inventory_lot;
 alter publication supabase_realtime add table product;
 ```
 
-### 2. The app
+### 2. The scanner (Edge Function)
+
+Capture calls Claude from a Supabase Edge Function, so the Anthropic key never
+ships in the app bundle:
+
+```bash
+npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+npx supabase functions deploy scan-capture
+```
+
+The `captures` storage bucket and its policies are created by the migrations.
+
+### 3. The app
 
 ```bash
 cp .env.example .env      # fill in your project URL and anon key
@@ -43,6 +57,25 @@ npx expo start
 ```
 
 Open it with Expo Go, or press `w` for the browser.
+
+## What capture does
+
+Photograph a till roll or the shopping on the counter. The scan produces a
+**draft tray** — an editable list where nothing has touched inventory yet:
+
+- **Least-confident rows sort first.** Those are the ones worth a human's
+  attention; a confident row rarely needs a second look.
+- **Every row carries a decision**: add to an existing product, create a new
+  one, or skip. Bags, deposits, discounts and the total line skip themselves.
+- **Corrections are remembered.** Committing writes the till's exact string to
+  `product_alias`, so `LCH ENT 1L` resolves to your milk on the next shop
+  without the model having to work it out again. Accuracy climbs over the first
+  few trips, and that curve is the point.
+- **Committing goes through the ledger.** `commit_capture` calls the same
+  `add_stock` the manual path uses, so lots, inferred expiry and the movement
+  log all behave identically.
+- **Units that cannot mean the same thing are refused.** Merging "2 ud" into a
+  product tracked by volume raises instead of silently writing 2 ml.
 
 ## What phase 1 gives you
 
@@ -90,6 +123,6 @@ src/app/               expo-router routes
 
 ## Next
 
-Phase 2 is camera capture: receipt and product photos to a draft tray, with
-alias learning so the same till line resolves exactly on the next shop. The
-`product_alias` table and the search that reads it are already in place.
+Phase 3 is the shopping list: it assembles itself from what ran out, ran low, or
+is about to expire, works as a live shared checklist, and closes out through the
+same commit path the draft tray uses.
