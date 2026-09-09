@@ -17,7 +17,9 @@
     "expo-image": "~57.0.4",
     "expo-image-manipulator": "^57.0.16",
     "expo-image-picker": "^57.0.16",
+    "expo-keep-awake": "^57.0.1",
     "expo-linking": "~57.0.9",
+    "expo-notifications": "^57.0.17",
     "expo-router": "~57.0.20",
     "expo-splash-screen": "~57.0.8",
     "expo-status-bar": "~57.0.1",
@@ -46,7 +48,9 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test:db": "bash supabase/tests/run.sh",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:budget": "node --experimental-strip-types --test supabase/functions/_shared/__tests__/*.test.ts",
+    "test": "npm run typecheck && npm run test:budget"
   },
   "private": true
 }

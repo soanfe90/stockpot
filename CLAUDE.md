@@ -31,6 +31,13 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   the worst thing this feature can do.
 - **`needs_restocking()` is the single definition of what belongs on the list.**
   Both the upsert and the cleanup read it, so they cannot disagree.
+- **A generated plan is never trusted.** `enforceBudget` in
+  `supabase/functions/_shared/budget.ts` checks it against real quantities
+  before it is written. It lives outside the Edge Function so it can be tested
+  with `npm run test:budget`; never inline a second copy.
+- **Only `finish_cooking` removes stock for a meal.** Approving reserves,
+  skipping and cancelling release. Every one of those goes through the database
+  under a row lock.
 
 ## Layout
 
@@ -46,7 +53,6 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
 
 ## Phase status
 
-Phases 1 (ledger), 2 (capture) and 3 (shopping list) are built. Phases 4-5 —
-plan and cook, library — are specified but not implemented; their tabs are
-placeholders. `reserved_qty` and the `recipe_gap` item source exist in the
-schema for phase 4 and are unused until then.
+Phases 1-4 are built: the ledger, capture, the shopping list, and planning and
+cooking. Phase 5 — the recipe library — is specified but not implemented; its
+tab is a placeholder.

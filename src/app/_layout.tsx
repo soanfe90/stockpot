@@ -93,6 +93,18 @@ function RootNavigator() {
           name="shopping/history"
           options={{ headerShown: true, title: 'Past trips', headerBackTitle: 'List' }}
         />
+        <Stack.Screen
+          name="plan/create"
+          options={{ presentation: 'modal', headerShown: true, title: 'New plan' }}
+        />
+        <Stack.Screen
+          name="plan/[id]"
+          options={{ headerShown: true, title: 'Review plan', headerBackTitle: 'Meals' }}
+        />
+        <Stack.Screen
+          name="cook/[id]"
+          options={{ headerShown: true, title: 'Cooking', headerBackTitle: 'Meals' }}
+        />
       </Stack>
     </>
   );

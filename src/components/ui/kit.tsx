@@ -201,6 +201,55 @@ export function Segmented<T extends string>({
   );
 }
 
+/** Multi-select. Same shape as Segmented, but any number can be on at once. */
+export function Chips<T extends string>({
+  label,
+  hint,
+  options,
+  values,
+  onChange,
+}: {
+  label?: string;
+  hint?: string;
+  options: T[];
+  values: T[];
+  onChange: (values: T[]) => void;
+}) {
+  const t = useTokens();
+  return (
+    <View style={{ gap: space.sm }}>
+      {label ? <Eyebrow>{label}</Eyebrow> : null}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+        {options.map((option) => {
+          const active = values.includes(option);
+          return (
+            <Pressable
+              key={option}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: active }}
+              onPress={() =>
+                onChange(active ? values.filter((v) => v !== option) : [...values, option])
+              }
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: space.md,
+                borderRadius: radius.sm,
+                borderWidth: StyleSheet.hairlineWidth * 2,
+                borderColor: active ? t.accent : t.line,
+                backgroundColor: active ? t.accentWash : t.surface,
+              }}>
+              <Text style={{ fontSize: 13.5, color: active ? t.accentText : t.inkMuted, fontWeight: active ? '600' : '400' }}>
+                {option}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {hint ? <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>{hint}</Text> : null}
+    </View>
+  );
+}
+
 /* ------------------------------------------------------------- surfaces -- */
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {

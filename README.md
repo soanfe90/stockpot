@@ -3,12 +3,10 @@
 An expiry-driven pantry. It tracks what a household holds, what is about to
 turn, and — from phase 4 — what to cook with it tonight.
 
-**Phases 1–3 are implemented.** The ledger (auth, shared households, the product
-catalog, dated inventory lots, search, filters, the stock summary, an
-append-only movement log), capture (photographing a receipt or your groceries
-into a reviewable draft tray that learns from every correction), and the
-shopping list (which writes itself from the ledger and writes back into it).
-Planning and the library follow.
+**Phases 1–4 are implemented.** The ledger, capture, the shopping list, and now
+planning and cooking — generating meals from what is actually in stock,
+reserving their ingredients, and deducting what was really used when you finish.
+The recipe library (phase 5) follows.
 
 ## Setup
 
@@ -37,14 +35,15 @@ alter publication supabase_realtime add table inventory_lot;
 alter publication supabase_realtime add table product;
 ```
 
-### 2. The scanner (Edge Function)
+### 2. The Edge Functions
 
-Capture calls Claude from a Supabase Edge Function, so the Anthropic key never
-ships in the app bundle:
+Scanning and planning call Claude server-side, so the Anthropic key never ships
+in the app bundle:
 
 ```bash
 npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 npx supabase functions deploy scan-capture
+npx supabase functions deploy generate-plan
 ```
 
 The `captures` storage bucket and its policies are created by the migrations.
@@ -77,6 +76,29 @@ Photograph a till roll or the shopping on the counter. The scan produces a
   log all behave identically.
 - **Units that cannot mean the same thing are refused.** Merging "2 ud" into a
   product tracked by volume raises instead of silently writing 2 ml.
+
+## What planning does
+
+A plan is an allocation of stock, not a list of nice ideas:
+
+- **Generation is constrained, and the constraint is enforced here, not hoped
+  for.** The model gets the pantry as data and must reference products by id
+  from it; every plan is then checked against real quantities server-side before
+  anyone sees it. A meal that would overdraw the pantry is dropped, earlier days
+  winning, so what survives is a real prefix rather than an arbitrary subset.
+- **The whole plan is budgeted together**, not meal by meal. Twenty-one
+  independent calls would each reach for the same chicken.
+- **Approving reserves.** Ingredients are claimed against specific lots, oldest
+  first, so the shopping list stops offering to sell you groceries the plan has
+  already spoken for. A shortfall is not an error — it goes to the shopping list
+  as a `recipe_gap`, pinned so a list refresh cannot relabel it.
+- **Finishing deducts what was actually used.** People substitute, burn things,
+  and cook for four when the plan said two; the summary takes the real servings
+  and per-ingredient adjustments. Running out mid-recipe clamps at zero and the
+  cook log records both what was wanted and what was taken.
+- **Skipping or cancelling gives the stock back.**
+- **Reminders fire 30 minutes before**, scheduled on the device so they work
+  without a network.
 
 ## What the shopping list does
 
@@ -130,6 +152,13 @@ PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres npm run test:db
 
 It drops and rebuilds `public`, so point it at a scratch database only.
 
+The plan budget enforcer — the guard that stops a generated plan calling for
+food you do not have — is tested without a Deno runtime:
+
+```bash
+npm test          # typecheck + budget tests
+```
+
 ## Layout
 
 ```
@@ -144,6 +173,6 @@ src/app/               expo-router routes
 
 ## Next
 
-Phase 4 is planning and cooking: generating a plan from what is actually in
-stock, a schedule with reminders, cook mode, and deduction on finishing. That is
-where `reserved_qty` and the `recipe_gap` list source finally get used.
+Phase 5 is the library: browsing and filtering everything cooked, reusing a
+saved recipe into the schedule with gap detection, adapting one to current
+stock, and saving whole days and weeks as reusable templates.

@@ -187,3 +187,108 @@ export const SOURCE_LABELS: Record<ItemSource, string> = {
   recipe_gap: 'For a meal',
   manual: 'Added by you',
 };
+
+/* ------------------------------------------------------------ planning --- */
+
+export type PlanScope = 'single' | 'day' | 'week';
+export type PlanStatus = 'draft' | 'active' | 'done' | 'cancelled';
+export type SlotStatus = 'planned' | 'cooking' | 'done' | 'skipped';
+export type MealCategory = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export type RecipeSource = 'generated' | 'library' | 'user';
+
+export const MEAL_CATEGORIES: MealCategory[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+export const DIET_TYPES = [
+  'Balanced', 'Low calorie', 'Low fat', 'Keto', 'Vegetarian', 'Vegan',
+  'Low carb', 'Gluten free', 'Dairy free', 'High protein',
+];
+
+export const CUISINES = [
+  'American', 'Mexican', 'Latino', 'Italian', 'Mediterranean', 'Indian',
+  'Asian', 'Thai', 'Middle Eastern', 'Japanese', 'Caribbean', 'Canadian',
+];
+
+export const GOALS = [
+  'Save money', 'Eat healthier', 'Eat more balanced', 'Lose weight',
+  'Save time', 'Waste less',
+];
+
+export type Recipe = {
+  id: string;
+  household_id: string;
+  name: string;
+  category: MealCategory;
+  diet_types: string[];
+  cuisine: string | null;
+  est_minutes: number | null;
+  servings: number;
+  total_calories: number | null;
+  steps: string[];
+  tips: string[];
+  video_links: string[];
+  source: RecipeSource;
+  parent_recipe_id: string | null;
+  image_url: string | null;
+  created_at: string;
+};
+
+export type RecipeIngredient = {
+  id: string;
+  recipe_id: string;
+  product_id: string | null;
+  name: string;
+  qty: number;
+  display_unit: string;
+  base_unit: BaseUnit;
+  optional: boolean;
+  note: string | null;
+  position: number;
+};
+
+export type MealPlan = {
+  id: string;
+  household_id: string;
+  scope: PlanScope;
+  starts_on: string;
+  ends_on: string;
+  status: PlanStatus;
+  prefs: Record<string, unknown>;
+  created_at: string;
+  approved_at: string | null;
+};
+
+export type MealSlot = {
+  id: string;
+  plan_id: string;
+  household_id: string;
+  recipe_id: string;
+  scheduled_at: string;
+  category: MealCategory;
+  servings: number;
+  status: SlotStatus;
+  pinned: boolean;
+  notify_at: string | null;
+  position: number;
+  started_at: string | null;
+};
+
+export type ScheduledMeal = MealSlot & { recipe: Recipe };
+
+export type PlanShortfall = {
+  product_id: string;
+  product_name: string;
+  display_unit: string;
+  base_unit: BaseUnit;
+  needed: number;
+  available: number;
+  shortfall: number;
+  needed_by: string | null;
+};
+
+export type CookDeduction = {
+  product_id: string;
+  name: string;
+  wanted: number;
+  taken: number;
+  unit: string;
+};
