@@ -14,6 +14,7 @@ import {
   DEFAULT_SHOPPING_DAYS,
   DIET_TYPES,
   GOALS,
+  LLM_MODELS,
   WEEKDAYS,
   type MealTimes,
 } from '@/lib/types';
@@ -42,6 +43,7 @@ export default function PreferencesScreen() {
   const [goals, setGoals] = useState<string[]>(profile?.goals ?? []);
   const [mealTimes, setMealTimes] = useState<MealTimes>(profile?.meal_times ?? DEFAULT_MEAL_TIMES);
   const [shoppingDays, setShoppingDays] = useState<number[]>(profile?.shopping_days ?? DEFAULT_SHOPPING_DAYS);
+  const [llmModel, setLlmModel] = useState<string>(profile?.llm_model ?? LLM_MODELS[0].value);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,7 +96,7 @@ export default function PreferencesScreen() {
     setBusy(true);
     setError(null);
     try {
-      await savePreferences({ diets, cuisines, goals, mealTimes, shoppingDays });
+      await savePreferences({ diets, cuisines, goals, mealTimes, shoppingDays, llmModel });
       if (first) router.replace('/');
       else router.back();
     } catch (e) {
@@ -263,6 +265,24 @@ export default function PreferencesScreen() {
         Preferences are yours, not the household&apos;s — two people sharing a pantry can want different things from
         it.
       </Text>
+
+      <Card>
+        <View style={{ gap: space.md }}>
+          <Eyebrow>How hard it thinks</Eyebrow>
+          <Segmented
+            options={LLM_MODELS.map((m) => ({ value: m.value, label: m.label }))}
+            value={llmModel}
+            onChange={setLlmModel}
+          />
+          <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
+            {LLM_MODELS.find((m) => m.value === llmModel)?.hint}
+          </Text>
+          <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
+            Calls go through your own Gemini key, so this is your cost to trade against. Scanning stays quick either
+            way; it is week-long plans that gain the most.
+          </Text>
+        </View>
+      </Card>
 
       {first || !household ? null : (
         <Card>

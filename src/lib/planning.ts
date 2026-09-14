@@ -56,6 +56,7 @@ export async function generatePlan(
   prefs: PlanPrefs,
   mealTimes?: MealTimes,
   shoppingDays?: number[],
+  model?: string | null,
   /** Abort the wait. The request is dropped; see cancelling in plan/create. */
   signal?: AbortSignal
 ): Promise<GenerateResult> {
@@ -68,6 +69,7 @@ export async function generatePlan(
       tz_offset_minutes: tzOffsetMinutes(),
       meal_times: mealTimes,
       shopping_days: shoppingDays,
+      model,
     },
     signal,
   });
@@ -85,7 +87,8 @@ export async function regenerateSlot(
   householdId: string,
   slotId: string,
   startsOn: string,
-  prefs: PlanPrefs
+  prefs: PlanPrefs,
+  model?: string | null
 ): Promise<GenerateResult> {
   const { data, error } = await supabase.functions.invoke('generate-plan', {
     body: {
@@ -95,6 +98,7 @@ export async function regenerateSlot(
       prefs,
       tz_offset_minutes: tzOffsetMinutes(),
       replace_slot_id: slotId,
+      model,
     },
   });
   if (error) throw new Error(await readFunctionError(error));
@@ -129,6 +133,44 @@ export async function addIngredient(recipeId: string, productId: string, qty: nu
     p_qty: qty,
   });
   if (error) throw error;
+}
+
+/**
+ * The first day a new plan can start without landing on top of one that
+ * already exists.
+ *
+ * Two plans over the same days do not merge, they compete: both appear on the
+ * schedule, and -- because a draft reserves nothing -- both can be built from
+ * the same food, so whichever is approved second comes up short. Starting
+ * after the last meal already scheduled is what keeps them out of each other's
+ * way.
+ */
+export async function nextFreeDay(householdId: string): Promise<string> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const { data } = await supabase
+    .from('meal_slot')
+    .select('scheduled_at')
+    .eq('household_id', householdId)
+    .in('status', ['planned', 'cooking'])
+    .order('scheduled_at', { ascending: false })
+    .limit(1);
+
+  const last = data?.[0]?.scheduled_at;
+  if (!last) return iso(today);
+
+  const after = new Date(last);
+  after.setHours(0, 0, 0, 0);
+  after.setDate(after.getDate() + 1);
+
+  // Never in the past: a schedule left over from last week should not push a
+  // new plan backwards.
+  return iso(after > today ? after : today);
+}
+
+function iso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export async function loadPlan(planId: string): Promise<{

@@ -33,7 +33,7 @@ export default function CameraScreen() {
   const t = useTokens();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { household } = useHousehold();
+  const { household, profile } = useHousehold();
 
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -97,7 +97,7 @@ export default function CameraScreen() {
     setBusy(true);
     setError(null);
     try {
-      const capture = await scanPhoto(household.id, kind, uri);
+      const capture = await scanPhoto(household.id, kind, uri, profile?.llm_model ?? null);
       router.replace(`/capture/${capture.id}`);
     } catch (e) {
       setError(errorMessage(e));

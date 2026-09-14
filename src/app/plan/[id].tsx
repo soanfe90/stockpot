@@ -83,7 +83,12 @@ export default function ReviewPlanScreen() {
     setError(null);
     try {
       await approvePlan(id);
-      const gaps = shortfalls.length ? await addPlanGaps(id) : 0;
+      // Unconditionally, and not gated on the shortfalls this screen happened
+      // to load: reserving can itself create a gap that was not there a moment
+      // ago, and a stale empty list would have meant nothing reached the shop.
+      // The write is an upsert, so running it when there is nothing to add
+      // costs a round trip and changes nothing.
+      const gaps = await addPlanGaps(id);
 
       // By this point the plan is approved and its ingredients are reserved.
       // Reminders are a convenience on top, so a failure here must not be
@@ -172,7 +177,8 @@ export default function ReviewPlanScreen() {
                   goals: profile?.goals ?? [],
                   servings: meals[0]?.servings ?? 2 },
                 profile?.meal_times ?? DEFAULT_MEAL_TIMES,
-                onDays
+                onDays,
+                profile?.llm_model ?? null
               );
               router.replace(`/plan/${result.plan_id}`);
             } catch (e) {

@@ -59,7 +59,7 @@ Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) return fail('Missing Authorization header.', 401);
 
-  let body: { recipe_id: string; servings?: number };
+  let body: { recipe_id: string; servings?: number; model?: string | null };
   try {
     body = await req.json();
   } catch {
@@ -107,6 +107,7 @@ Deno.serve(async (req: Request) => {
 
     const adapted = await generateStructured({
       label: 'Adapting the recipe',
+      model: body.model ?? null,
       schema: AdaptedSchema,
       maxOutputTokens: 16000,
       system: [SYSTEM_RULES, '', `Untracked staples: ${STAPLES.join(', ')}.`].join('\n'),
@@ -139,7 +140,7 @@ Deno.serve(async (req: Request) => {
         },
       ],
       pantry,
-      { shoppingDays: [], maxNewProducts: 0 }
+      { shoppingDays: [], maxNewProducts: 0, pantryOnlyDays: 1 }
     );
     if (accepted.length === 0) {
       return fail(

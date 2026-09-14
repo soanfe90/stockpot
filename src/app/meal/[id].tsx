@@ -121,7 +121,7 @@ export default function MealScreen() {
               cuisines: profile?.cuisines ?? [],
               goals: profile?.goals ?? [],
               servings: meal.servings,
-            });
+            }, profile?.llm_model ?? null);
             // The old slot is gone, so there is nothing here to come back to.
             router.back();
           }).finally(() => setSwapping(false));

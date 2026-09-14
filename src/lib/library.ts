@@ -104,9 +104,13 @@ export async function scheduleFromLibrary(
   return (Array.isArray(data) ? data[0] : data) as MealPlan;
 }
 
-export async function adaptRecipe(recipeId: string, servings?: number): Promise<AdaptResult> {
+export async function adaptRecipe(
+  recipeId: string,
+  servings?: number,
+  model?: string | null
+): Promise<AdaptResult> {
   const { data, error } = await supabase.functions.invoke('adapt-recipe', {
-    body: { recipe_id: recipeId, servings },
+    body: { recipe_id: recipeId, servings, model },
   });
   if (error) throw new Error(await readFunctionError(error));
   return data as AdaptResult;

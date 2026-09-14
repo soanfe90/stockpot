@@ -66,14 +66,16 @@ export type PlanLimits = {
    *  means fewer of these -- one weekly shop that has to carry seven days is
    *  not the moment to buy eight new things. */
   maxNewProducts: number;
+  /**
+   * Days at the start that must come entirely from the pantry.
+   *
+   * Normally 1: being told to go to a supermarket before you can make
+   * tonight's dinner is the one outcome this must never produce. Zero for a
+   * household with nothing in yet, where "here is what to buy" is the entire
+   * point and there is no shelf to fall back on.
+   */
+  pantryOnlyDays: number;
 };
-
-/**
- * Day 0 is always the household's own shelf, whatever their shopping days say.
- * Being told to go to a supermarket before you can make tonight's dinner is
- * the one outcome this feature must never produce.
- */
-const PANTRY_ONLY_DAYS = 1;
 
 /** The trip that covers something first wanted on `day`: the last shopping day
  *  at or before it. Null when nothing precedes it and it cannot be bought. */
@@ -195,7 +197,7 @@ function allocate<S extends PlanSlot>(
       }
 
       if (ing.source === 'buy') {
-        if (slot.day_offset < PANTRY_ONLY_DAYS) {
+        if (slot.day_offset < limits.pantryOnlyDays) {
           violations.push(
             `"${slot.name}" is on day ${slot.day_offset} and needs ${ing.name} bought. Today has to ` +
               `come entirely from the pantry -- nobody should have to shop before they can cook tonight.`

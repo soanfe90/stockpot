@@ -94,3 +94,54 @@ begin
     then raise exception 'FAIL: pruning took a product a plan is using'; end if;
 end $$;
 \echo '  [6] an intention nothing wants any more is pruned, one a plan wants is not'
+
+-- ------------------------------------------- discarding takes it back off ---
+
+do $$ begin
+  -- The plan put Lentejas on the list. Cancelling the plan must take it off
+  -- again, or every abandoned draft leaves litter someone has to notice.
+  if not exists (select 1 from shopping_item where name = 'Lentejas')
+    then raise exception 'FAIL: precondition -- the gap should be on the list'; end if;
+
+  perform cancel_plan((select id from meal_plan limit 1));
+
+  if exists (select 1 from shopping_item where name = 'Lentejas' and not checked)
+    then raise exception 'FAIL: a discarded plan left its shopping behind'; end if;
+end $$;
+\echo '  [7] discarding a plan takes its untouched rows back off the list'
+
+-- Something already ticked belongs to whoever ticked it, plan or no plan.
+-- A product with no stock at all, so the plan genuinely puts it on the list:
+-- by now the lentils have been bought and are no longer short of anything.
+insert into product (household_id, name, category, base_unit, display_unit, planned)
+values ((select id from household where name = 'Casa Compra'), 'Cúrcuma', 'Condiments & Spices', 'g', 'g', true)
+returning id as turmeric \gset
+insert into recipe (household_id, name, category, servings, source)
+values ((select id from household where name = 'Casa Compra'), 'Curry', 'dinner', 2, 'generated')
+returning id as curry \gset
+insert into recipe_ingredient (recipe_id, product_id, name, qty, display_unit, base_unit)
+values (:'curry', :'turmeric', 'Cúrcuma', 20, 'g', 'g');
+
+insert into meal_plan (household_id, scope, starts_on, ends_on, status)
+values ((select id from household where name = 'Casa Compra'), 'week', current_date, current_date + 6, 'draft')
+returning id as plan2 \gset
+insert into meal_slot (plan_id, household_id, recipe_id, scheduled_at, category, servings)
+values (:'plan2', (select id from household where name = 'Casa Compra'), :'curry',
+        current_date + interval '4 days 20 hours', 'dinner', 2);
+
+\o /dev/null
+select add_plan_gaps_to_list(:'plan2');
+\o
+do $$ begin
+  if not exists (select 1 from shopping_item where name = 'Cúrcuma')
+    then raise exception 'FAIL: precondition -- the new gap should be on the list'; end if;
+end $$;
+
+update shopping_item set checked = true where name = 'Cúrcuma';
+
+do $$ begin
+  perform cancel_plan((select id from meal_plan where status = 'draft' limit 1));
+  if not exists (select 1 from shopping_item where name = 'Cúrcuma' and checked)
+    then raise exception 'FAIL: a row someone had already ticked was taken away'; end if;
+end $$;
+\echo '  [8] but a row already ticked is left alone'

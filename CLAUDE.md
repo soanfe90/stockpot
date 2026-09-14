@@ -82,6 +82,23 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   nothing may be needed before the household can actually get to a shop. A day
   or single plan gets no allowance at all; only a week does, and `adapt-recipe`
   is closed entirely.
+- **A draft plan is invisible to `product_stock`.** It reserves nothing, so a
+  new plan must subtract what every *other* live draft has already spoken for —
+  otherwise two drafts plan the same food and whichever is approved second comes
+  up short, today included. `nextFreeDay` keeps new plans from landing on an
+  existing schedule in the first place.
+- **A plan's shopping reaches the list when the plan is written, not when it is
+  approved.** Approving is about reserving stock; knowing what to buy is needed
+  before that, and a household with an empty pantry has nothing to reserve at
+  all. `cancel_plan` takes the unticked rows back off, leaves ticked ones alone,
+  and keeps any a second live plan still wants.
+- **An empty pantry is a starting point, not an error.** `limitsFor` returns
+  `pantryOnlyDays: 0` and a same-day trip when there is nothing in, so the plan
+  becomes a shopping list with meals attached — which is the app's most useful
+  moment, not a failure case.
+- **The Gemini model is a preference**, allowlisted in `_shared/llm.ts` before it
+  reaches an API: it arrives from the app and decides what each call costs
+  against the household's own key. `GEMINI_MODEL` remains the default.
 - **Shopping days are days, not a count.** `user_profile.shopping_days` holds ISO
   weekdays; `limitsFor` turns them into plan-day offsets, and `tripFor` decides
   which trip covers each purchase. Someone who shops Saturdays and someone who

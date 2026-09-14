@@ -43,6 +43,26 @@ export function asImageMimeType(value: string | null | undefined): ImageMimeType
 
 export type Provider = 'gemini' | 'anthropic';
 
+/**
+ * Gemini models a household may choose between, cheapest first.
+ *
+ * An allowlist rather than a free string: the model name arrives from the app,
+ * and it decides what each call costs against the household's own API key. A
+ * typo should fall back to the default, not bill them for something exotic or
+ * fail every request until somebody notices.
+ *
+ * GEMINI_MODEL still sets the default, so an operator can pin a different one
+ * without a release.
+ */
+export const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro'] as const;
+export type GeminiModel = (typeof GEMINI_MODELS)[number];
+
+export function asGeminiModel(value: unknown): GeminiModel | null {
+  return typeof value === 'string' && (GEMINI_MODELS as readonly string[]).includes(value)
+    ? (value as GeminiModel)
+    : null;
+}
+
 export function activeProvider(): Provider {
   return (Deno.env.get('LLM_PROVIDER') ?? 'gemini').toLowerCase() === 'anthropic'
     ? 'anthropic'
@@ -59,6 +79,9 @@ export async function generateStructured<T>(opts: {
   maxOutputTokens?: number;
   /** Prepended to error messages so a failure names which call broke. */
   label: string;
+  /** Overrides the default for this one call. Ignored by providers other than
+   *  the one it names, and by an unrecognised value. */
+  model?: string | null;
 }): Promise<T> {
   const raw =
     activeProvider() === 'anthropic' ? await viaAnthropic(opts) : await viaGemini(opts);
@@ -83,12 +106,13 @@ async function viaGemini<T>(opts: {
   schema: z.ZodType<T>;
   maxOutputTokens?: number;
   label: string;
+  model?: string | null;
 }): Promise<unknown> {
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) {
     throw new LlmError('GEMINI_API_KEY is not set. Run: supabase secrets set GEMINI_API_KEY=...');
   }
-  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
+  const model = asGeminiModel(opts.model) ?? Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
 
   // responseJsonSchema takes standard JSON Schema; responseSchema is the
   // narrower OpenAPI subset that rejects additionalProperties, so this is the

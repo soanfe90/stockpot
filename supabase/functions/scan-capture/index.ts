@@ -105,8 +105,11 @@ Deno.serve(async (req: Request) => {
   if (!authHeader) return fail('Missing Authorization header.', 401);
 
   let captureId: string;
+  let model: string | null = null;
   try {
-    ({ capture_id: captureId } = await req.json());
+    const body = (await req.json()) as { capture_id?: string; model?: string | null };
+    captureId = body.capture_id ?? '';
+    model = body.model ?? null;
   } catch {
     return fail('Send a JSON body with a capture_id.');
   }
@@ -165,6 +168,7 @@ Deno.serve(async (req: Request) => {
 
     const parsed = await generateStructured({
       label: 'Reading the photo',
+      model,
       schema: ScanSchema,
       maxOutputTokens: 16000,
       // Rules first, then the catalog: the stable part of the prompt leads, so

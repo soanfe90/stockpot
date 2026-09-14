@@ -57,3 +57,30 @@ do $$ begin
   end;
 end $$;
 \echo '  [5] a weekday outside 1-7 is refused'
+
+-- ----------------------------------------------------------- model choice ---
+
+do $$
+declare p user_profile;
+begin
+  p := save_preferences();
+  if p.llm_model is not null
+    then raise exception 'FAIL: the default should defer to the server, got %', p.llm_model; end if;
+
+  p := save_preferences(null, '{}', '{}', '{}', '{}', null, null, 'gemini-2.5-pro');
+  if p.llm_model <> 'gemini-2.5-pro' then raise exception 'FAIL: the model was not saved'; end if;
+
+  -- And editing something else does not quietly send them back to flash.
+  p := save_preferences(null, array['Vegan'], '{}', '{}', '{}');
+  if p.llm_model <> 'gemini-2.5-pro' then raise exception 'FAIL: a diet edit reset the model'; end if;
+end $$;
+\echo '  [6] the model is a preference, kept across other edits'
+
+do $$ begin
+  begin
+    perform save_preferences(null, '{}', '{}', '{}', '{}', null, null, 'gpt-4');
+    raise exception 'FAIL: an arbitrary model name was accepted';
+  exception when check_violation then null;
+  end;
+end $$;
+\echo '  [7] a model outside the allowlist is refused'

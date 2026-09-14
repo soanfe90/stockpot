@@ -1,12 +1,13 @@
 import { useNavigation, useRouter } from 'expo-router';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Button, Card, Chips, ErrorNote, Field, Segmented, Title } from '@/components/ui/kit';
 import { Working } from '@/components/ui/working';
-import { generatePlan } from '@/lib/planning';
+import { generatePlan, nextFreeDay } from '@/lib/planning';
+import { formatDate } from '@/lib/expiry';
 import { errorMessage } from '@/lib/supabase';
 import {
   CUISINES,
@@ -33,6 +34,7 @@ export default function CreatePlanScreen() {
   const [goals, setGoals] = useState<string[]>(profile?.goals ?? []);
   const [servings, setServings] = useState(String(household?.size ?? 2));
   const [busy, setBusy] = useState(false);
+  const [startsOn, setStartsOn] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const navigation = useNavigation();
 
@@ -42,6 +44,11 @@ export default function CreatePlanScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({ headerBackVisible: !busy, headerLeft: busy ? () => null : undefined });
   }, [navigation, busy]);
+
+  // Shown before generating, so it is never a surprise where the plan landed.
+  useEffect(() => {
+    if (household) void nextFreeDay(household.id).then(setStartsOn);
+  }, [household]);
   const [error, setError] = useState<string | null>(null);
 
   async function generate() {
@@ -51,10 +58,12 @@ export default function CreatePlanScreen() {
     setBusy(true);
     setError(null);
     try {
+      // Not today by default: a plan laid over one that already exists does
+      // not merge with it, it competes with it for the same food.
       const result = await generatePlan(
         household.id,
         scope,
-        new Date().toISOString().slice(0, 10),
+        await nextFreeDay(household.id),
         {
           diets,
           cuisines,
@@ -66,6 +75,7 @@ export default function CreatePlanScreen() {
         // A week plan is built around the days this member can actually shop;
         // the review screen can rebuild it on different ones before approving.
         profile?.shopping_days ?? DEFAULT_SHOPPING_DAYS,
+        profile?.llm_model ?? null,
         controller.signal
       );
       router.replace(`/plan/${result.plan_id}`);
@@ -92,6 +102,13 @@ export default function CreatePlanScreen() {
             Every suggestion comes from what is actually in your pantry, working through whatever is closest to
             expiring first.
           </Body>
+          {startsOn ? (
+            <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
+              {startsOn === new Date().toISOString().slice(0, 10)
+                ? 'Starting today.'
+                : `Starting ${formatDate(startsOn)}, after the meals you already have scheduled.`}
+            </Text>
+          ) : null}
         </View>
 
         <Segmented

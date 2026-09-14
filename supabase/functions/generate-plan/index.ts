@@ -67,18 +67,30 @@ function limitsFor(
   scope: 'single' | 'day' | 'week',
   startsOn: string,
   days: number,
-  shoppingWeekdays: number[]
+  shoppingWeekdays: number[],
+  fromScratch: boolean
 ): PlanLimits {
+  // With nothing in the house there is no shelf to protect and no shelf to
+  // fall back on: the plan is a shopping list with meals attached, and it can
+  // be shopped for today whatever the usual weekday answer says.
+  if (fromScratch) {
+    return { shoppingDays: [0], maxNewProducts: 12, pantryOnlyDays: 0 };
+  }
+
   // A single meal or a single day is today, and today is always the
   // household's own shelf -- there is no room in it for a trip to a shop.
-  if (scope !== 'week') return { shoppingDays: [], maxNewProducts: 0 };
+  if (scope !== 'week') return { shoppingDays: [], maxNewProducts: 0, pantryOnlyDays: 1 };
 
   const shoppingDays: number[] = [];
   for (let offset = 0; offset < days; offset++) {
     if (shoppingWeekdays.includes(isoWeekday(startsOn, offset))) shoppingDays.push(offset);
   }
 
-  return { shoppingDays, maxNewProducts: Math.min(12, shoppingDays.length * 5) };
+  return {
+    shoppingDays,
+    maxNewProducts: Math.min(12, shoppingDays.length * 5),
+    pantryOnlyDays: 1,
+  };
 }
 
 /** The meal a regeneration stands in for: its plan, its place and its time. */
@@ -211,6 +223,9 @@ Deno.serve(async (req: Request) => {
     /** ISO weekdays the household can get to a shop. Empty is a real answer:
      *  plan from the pantry alone. */
     shopping_days?: number[];
+    /** Gemini model this member chose. Checked against an allowlist before it
+     *  reaches an API; anything unrecognised falls back to the default. */
+    model?: string | null;
     /** Set to swap one meal of an existing draft for a fresh suggestion,
      *  keeping its plan, its slot in the day, and its time. */
     replace_slot_id?: string;
@@ -289,14 +304,21 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (replacing && replacing.plan_status === 'draft') {
-      const { data: siblings } = await supabase
+    // Every meal of every *draft* plan, whether this one or another sitting
+    // unapproved. Drafts hold no reservation, so product_stock has never heard
+    // of them -- and two drafts blind to each other will plan the same food,
+    // which is how a meal for today could come up short of a pantry that
+    // looked, on its own numbers, perfectly able to cover it.
+    {
+      const query = supabase
         .from('meal_slot')
-        .select('servings, recipe:recipe_id (servings, recipe_ingredient (product_id, qty))')
-        .eq('plan_id', replacing.plan_id)
-        .neq('id', replacing.id);
+        .select('id, servings, plan:plan_id!inner (status), recipe:recipe_id (servings, recipe_ingredient (product_id, qty))')
+        .eq('household_id', body.household_id)
+        .eq('plan.status', 'draft');
 
-      for (const sib of (siblings ?? []) as unknown as {
+      const { data: drafts } = replacing ? await query.neq('id', replacing.id) : await query;
+
+      for (const sib of (drafts ?? []) as unknown as {
         servings: number;
         recipe: { servings: number; recipe_ingredient: { product_id: string | null; qty: number }[] } | null;
       }[]) {
@@ -329,8 +351,12 @@ Deno.serve(async (req: Request) => {
       .filter((p) => p.available > 0)
       .sort((a, b) => (a.days_left ?? 9999) - (b.days_left ?? 9999));
 
-    if (pantry.length === 0) {
-      return fail('There is nothing in the pantry to plan with yet. Add or scan some stock first.', 409);
+    // An empty pantry used to be refused. It is in fact the most useful moment
+    // the app has: somebody who has just signed up and has nothing in wants to
+    // be told what to buy, and a plan is exactly the thing that can tell them.
+    const fromScratch = pantry.length === 0;
+    if (fromScratch && replacing) {
+      return fail('There is nothing left in the pantry to build a different meal from.', 409);
     }
 
     const days = replacing ? 1 : body.scope === 'week' ? 7 : 1;
@@ -341,8 +367,8 @@ Deno.serve(async (req: Request) => {
     const limits = replacing
       ? // A swap lives inside a plan that already made its shopping decisions,
         // so it gets no fresh allowance: it works with what is there.
-        { shoppingDays: [], maxNewProducts: 0 }
-      : limitsFor(body.scope, body.starts_on, days, body.shopping_days ?? []);
+        { shoppingDays: [], maxNewProducts: 0, pantryOnlyDays: 1 }
+      : limitsFor(body.scope, body.starts_on, days, body.shopping_days ?? [], fromScratch);
 
     // Things the household is already going to buy. Leaning on these costs no
     // extra trip, which makes them the cheapest variety available.
@@ -370,6 +396,7 @@ Deno.serve(async (req: Request) => {
     for (let attempt = 0; attempt < MAX_ATTEMPTS && accepted.length === 0; attempt++) {
       const parsed = await generateStructured({
         label: 'Building the plan',
+        model: body.model ?? null,
         schema: PlanSchema,
         maxOutputTokens: 32000,
         system: [SYSTEM_RULES, '', `Untracked staples: ${STAPLES.join(', ')}.`].join('\n'),
@@ -377,8 +404,9 @@ Deno.serve(async (req: Request) => {
           {
             type: 'text',
             text: [
-              `Pantry (sorted by what expires soonest):`,
-              JSON.stringify(pantry),
+              fromScratch
+                ? `Pantry: empty. There is nothing in the house.`
+                : `Pantry (sorted by what expires soonest):\n${JSON.stringify(pantry)}`,
               ``,
               `Recently cooked here, for reuse where it fits: ${JSON.stringify(history ?? [])}`,
               ``,
@@ -386,7 +414,15 @@ Deno.serve(async (req: Request) => {
               ``,
               `Categories for anything you ask them to buy: ${CATEGORIES_FOR_BUYING.join(', ')}.`,
               ``,
-              limits.shoppingDays.length
+              fromScratch
+                ? [
+                    `This household has nothing in the pantry at all. Build the plan entirely from things`,
+                    `they will buy -- every ingredient is "buy" except staples -- and keep the list tight:`,
+                    `choose ingredients that carry across several meals rather than one dish each, because`,
+                    `this list is what they will actually walk around a supermarket with.`,
+                    `At most ${limits.maxNewProducts} different things.`,
+                  ].join('\n')
+                : limits.shoppingDays.length
                 ? [
                     `This household can get to a shop on day_offset ${limits.shoppingDays.join(' and ')} of this plan,`,
                     `and nowhere else. Anything bought must therefore be first needed on or after one of those days --`,
@@ -582,6 +618,18 @@ Deno.serve(async (req: Request) => {
       });
       if (swapError) throw swapError;
       shortfall = Number((swapped as { shortfall_units?: number } | null)?.shortfall_units ?? 0);
+    }
+
+    // The shopping goes on the list the moment the plan exists, not when it is
+    // approved. Approving is about reserving stock; knowing what to buy is
+    // needed well before that -- and for a household with an empty pantry
+    // there is nothing to reserve at all, so waiting would mean the list never
+    // arrived. Discarding the plan takes its unticked rows back off again.
+    if (!replacing) {
+      const { error: gapError } = await supabase.rpc('add_plan_gaps_to_list', { p_plan_id: plan.id });
+      // A list that did not update is worth reporting, but not worth throwing
+      // away a written plan over.
+      if (gapError) console.error('add_plan_gaps_to_list', gapError.message);
     }
 
     return json({

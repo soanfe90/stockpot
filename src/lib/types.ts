@@ -48,6 +48,25 @@ export const WEEKDAYS: { value: number; label: string; short: string }[] = [
 /** Mirrors the user_profile.shopping_days column default. */
 export const DEFAULT_SHOPPING_DAYS = [6];
 
+/**
+ * Gemini models a household can choose between. Mirrors GEMINI_MODELS in
+ * supabase/functions/_shared/llm.ts, which is the authority -- it is checked
+ * there before anything reaches an API, because this value decides what a call
+ * costs against their own key.
+ */
+export const LLM_MODELS: { value: string; label: string; hint: string }[] = [
+  {
+    value: 'gemini-2.5-flash',
+    label: 'Fast',
+    hint: 'Quick and cheap. Fine for scanning receipts and for a single meal.',
+  },
+  {
+    value: 'gemini-2.5-pro',
+    label: 'Better',
+    hint: 'Slower and costs more per plan, but noticeably better at building a week around one particular pantry.',
+  },
+];
+
 export type UserProfile = {
   user_id: string;
   display_name: string | null;
@@ -59,6 +78,8 @@ export type UserProfile = {
   /** ISO weekdays this member can get to a supermarket. Empty is a real
    *  answer: plans are then built from stock alone. */
   shopping_days: number[];
+  /** Null means whatever the server is configured to use. */
+  llm_model: string | null;
   /** Null until the preference questions have been answered. Empty arrays are
    *  a valid answer, so they cannot stand in for "not asked yet". */
   onboarded_at: string | null;

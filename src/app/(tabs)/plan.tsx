@@ -1,11 +1,11 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, EmptyState, ErrorNote, Eyebrow, Icon, Loading } from '@/components/ui/kit';
-import { loadSchedule, mealLabel, skipMeal } from '@/lib/planning';
+import { cancelPlan, loadSchedule, mealLabel, skipMeal } from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
 import type { ScheduledMeal } from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
@@ -22,6 +22,39 @@ export default function PlanScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Clearing the schedule out entirely. Cancelling is what does the real work:
+   * it hands every reservation back, takes this plan's rows off the shopping
+   * list, and clears out the products that were invented for meals nobody will
+   * now cook.
+   */
+  function deletePlan() {
+    if (!household || !meals.length) return;
+    const planId = meals[0].plan_id;
+    const spread = new Set(meals.map((m) => m.plan_id)).size;
+
+    Alert.alert(
+      spread > 1 ? 'Delete the current plan?' : 'Delete this plan?',
+      'Every meal in it goes, its ingredients are released back into your pantry, and anything it put on your ' +
+        'shopping list that you have not already ticked comes off. Nothing is deducted from your stock.' +
+        (spread > 1 ? '\n\nOnly the plan the next meal belongs to is deleted.' : ''),
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelPlan(planId, household.id);
+              await load();
+            } catch (e) {
+              setError(errorMessage(e));
+            }
+          } },
+      ]
+    );
+  }
 
   const load = useCallback(async () => {
     if (!household) return;

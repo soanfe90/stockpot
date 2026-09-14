@@ -36,7 +36,8 @@ export async function prepareImage(uri: string): Promise<{ bytes: Uint8Array; wi
 export async function scanPhoto(
   householdId: string,
   kind: CaptureKind,
-  uri: string
+  uri: string,
+  model?: string | null
 ): Promise<Capture> {
   const { data: capture, error: createError } = await supabase
     .from('capture')
@@ -62,7 +63,7 @@ export async function scanPhoto(
     if (pathError) throw pathError;
 
     const { error: scanError } = await supabase.functions.invoke('scan-capture', {
-      body: { capture_id: capture.id },
+      body: { capture_id: capture.id, model },
     });
     if (scanError) throw new Error(await readFunctionError(scanError));
   } catch (e) {
@@ -80,9 +81,9 @@ export async function scanPhoto(
 }
 
 /** Re-runs the scan on a capture whose photo is already uploaded. */
-export async function rescan(captureId: string): Promise<void> {
+export async function rescan(captureId: string, model?: string | null): Promise<void> {
   const { error } = await supabase.functions.invoke('scan-capture', {
-    body: { capture_id: captureId },
+    body: { capture_id: captureId, model },
   });
   if (error) throw new Error(await readFunctionError(error));
 }
