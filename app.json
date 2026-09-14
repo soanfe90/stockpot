@@ -8,7 +8,8 @@
     "scheme": "stockpot",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.soanfe90.stockpot"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +18,9 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.soanfe90.stockpot",
+      "versionCode": 1
     },
     "web": {
       "output": "static",

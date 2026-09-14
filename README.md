@@ -182,6 +182,55 @@ It is assembled from the ledger, not typed:
 - **Oldest lot first.** `consume_product` always drains what is closest to
   expiring.
 
+## Putting it on someone else's phone
+
+Expo Go is fine for developing, but it tethers the app to a running dev server
+on your machine. For someone to actually live with the app, build it:
+
+```bash
+npx eas login          # a free Expo account
+npx eas init           # links the project, writes a project id into app.json
+```
+
+The Supabase values are inlined into the bundle at build time, and `.env` is
+gitignored so it never reaches the build servers. Set them as EAS environment
+variables instead — run this twice, once per variable, choosing the **preview**
+environment and **plaintext** visibility:
+
+```bash
+npx eas env:create
+```
+
+`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`, same values as
+your `.env`. They are public by design — they ship inside any built app — but
+this repository is public, so they stay out of committed files.
+
+Then build and share:
+
+```bash
+npx eas build --platform android --profile preview
+```
+
+About fifteen minutes in Expo's cloud, and it prints a link. Whoever opens it on
+Android installs the APK directly; they will have to allow installing from an
+unknown source once. No dev server, no QR code, no dependency on your machine.
+
+Three profiles are configured:
+
+| Profile | Produces | For |
+| --- | --- | --- |
+| `preview` | Installable APK | Handing to someone to test |
+| `development` | APK with the dev client | Your own builds — **this is what gives you meal reminders**, which Expo Go cannot do |
+| `production` | App bundle | The Play Store, when it comes to that |
+
+### Joining an existing household
+
+Whoever you share it with should create **their own account**, then choose
+**Join with a code** rather than starting a household, and enter the six-character
+invite code shown under the household name on your inventory screen. One pantry,
+one shopping list both of you can tick in a supermarket, one meal plan —
+preferences stay personal to each of you.
+
 ## Tests
 
 The ledger's rules are asserted against a real Postgres — lot separation,
