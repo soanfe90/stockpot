@@ -46,6 +46,9 @@ type ReplacedSlot = {
   scheduled_at: string;
   servings: number;
   position: number;
+  /** Draft plans reserve nothing; approved ones already hold their claim in
+   *  product_stock. The pantry has to be read differently for each. */
+  plan_status: string;
 };
 
 const IngredientSchema = z.object({
@@ -137,9 +140,10 @@ Deno.serve(async (req: Request) => {
   );
 
   try {
-    // A regeneration replaces one meal of a draft. Approved plans hold
-    // reservations against their recipes, so they are not up for rewriting --
-    // skip or cancel those instead.
+    // A regeneration replaces one meal of an existing plan. An approved plan
+    // holds reservations against its recipes; swap_slot moves that claim from
+    // the old meal to its replacement in one transaction, so the two never
+    // disagree about what the pantry owes.
     let replacing: ReplacedSlot | null = null;
 
     if (body.replace_slot_id) {
@@ -150,10 +154,12 @@ Deno.serve(async (req: Request) => {
         .single();
       if (slotError || !slot) return fail('That meal no longer exists.', 404);
       if (slot.status !== 'planned') return fail('That meal is already underway.', 409);
-      if ((slot.plan as unknown as { status: string })?.status !== 'draft') {
-        return fail('This plan is approved and its ingredients are reserved. Skip the meal instead.', 409);
+
+      const planStatus = (slot.plan as unknown as { status: string })?.status;
+      if (planStatus === 'cancelled' || planStatus === 'done') {
+        return fail('That plan is finished. Build a new one instead.', 409);
       }
-      replacing = slot as unknown as ReplacedSlot;
+      replacing = { ...(slot as unknown as ReplacedSlot), plan_status: planStatus };
     }
 
     // Available means unreserved: an approved plan's claim is not up for grabs.
@@ -169,11 +175,30 @@ Deno.serve(async (req: Request) => {
 
     const stockById = new Map((stock ?? []).map((s) => [s.product_id, s]));
 
-    // The other meals of a draft hold no reservation, so nothing in
-    // product_stock knows about them. Without subtracting them here, a
-    // regenerated meal would be free to spend the same food twice.
+    // Two corrections to what product_stock reports, and exactly one of them
+    // applies at a time.
+    //
+    // A draft's other meals hold no reservation, so nothing in product_stock
+    // knows about them: without subtracting them, a regenerated meal would be
+    // free to spend the same food twice. An approved plan is the reverse --
+    // its siblings are already inside qty_reserved, so subtracting them again
+    // would double-count, and the meal being replaced is holding a claim that
+    // its replacement is entitled to spend.
     const spentElsewhere = new Map<string, number>();
-    if (replacing) {
+    const freedByReplaced = new Map<string, number>();
+
+    if (replacing && replacing.plan_status !== 'draft') {
+      const { data: held } = await supabase
+        .from('reservation')
+        .select('product_id, qty')
+        .eq('slot_id', replacing.id);
+
+      for (const r of (held ?? []) as { product_id: string; qty: number }[]) {
+        freedByReplaced.set(r.product_id, (freedByReplaced.get(r.product_id) ?? 0) + Number(r.qty));
+      }
+    }
+
+    if (replacing && replacing.plan_status === 'draft') {
       const { data: siblings } = await supabase
         .from('meal_slot')
         .select('servings, recipe:recipe_id (servings, recipe_ingredient (product_id, qty))')
@@ -197,7 +222,10 @@ Deno.serve(async (req: Request) => {
       .map((p) => {
         const s = stockById.get(p.id);
         const available =
-          Number(s?.qty_total ?? 0) - Number(s?.qty_reserved ?? 0) - (spentElsewhere.get(p.id) ?? 0);
+          Number(s?.qty_total ?? 0) -
+          Number(s?.qty_reserved ?? 0) +
+          (freedByReplaced.get(p.id) ?? 0) -
+          (spentElsewhere.get(p.id) ?? 0);
         return {
           product_id: p.id,
           name: p.name,
@@ -300,6 +328,7 @@ Deno.serve(async (req: Request) => {
     }
 
     let position = replacing ? replacing.position : 0;
+    let writtenSlotId: string | null = null;
     for (const slot of accepted) {
       const { data: recipe, error: recipeError } = await supabase
         .from('recipe')
@@ -338,27 +367,37 @@ Deno.serve(async (req: Request) => {
       const scheduledAt = replacing
         ? new Date(replacing.scheduled_at)
         : mealTime(body.starts_on, slot.day_offset, slot.category, tz, mealMinutes);
-      const { error: slotError } = await supabase.from('meal_slot').insert({
-        plan_id: plan.id,
-        household_id: body.household_id,
-        recipe_id: recipe.id,
-        scheduled_at: scheduledAt.toISOString(),
-        category: replacing ? replacing.category : slot.category,
-        servings: Math.max(1, Math.round(slot.servings)),
-        notify_at: new Date(scheduledAt.getTime() - 30 * 60_000).toISOString(),
-        position: position++,
-      });
+      const { data: written, error: slotError } = await supabase
+        .from('meal_slot')
+        .insert({
+          plan_id: plan.id,
+          household_id: body.household_id,
+          recipe_id: recipe.id,
+          scheduled_at: scheduledAt.toISOString(),
+          category: replacing ? replacing.category : slot.category,
+          servings: Math.max(1, Math.round(slot.servings)),
+          notify_at: new Date(scheduledAt.getTime() - 30 * 60_000).toISOString(),
+          position: position++,
+        })
+        .select('id')
+        .single();
       if (slotError) throw slotError;
+      writtenSlotId = written.id;
     }
 
-    // The old meal goes only once its replacement is safely written, so a
-    // failure above leaves the plan as it was rather than one meal short.
-    // Deleting the slot first releases the recipe from the plan; the recipe
-    // itself was generated for this slot alone and has nothing to say once it
-    // has been rejected.
-    if (replacing) {
-      await supabase.from('meal_slot').delete().eq('id', replacing.id);
-      await supabase.from('recipe').delete().eq('id', replacing.recipe_id);
+    // Everything above this line is additive: the replacement is written
+    // unreserved, so a generation or a write that failed has changed nothing.
+    // swap_slot is the only step that moves the claim, and it retires the old
+    // meal and takes the new one's reservation in a single transaction -- there
+    // is no moment where the plan holds two meals for one sitting, or none.
+    let shortfall = 0;
+    if (replacing && writtenSlotId) {
+      const { data: swapped, error: swapError } = await supabase.rpc('swap_slot', {
+        p_old_slot_id: replacing.id,
+        p_new_slot_id: writtenSlotId,
+      });
+      if (swapError) throw swapError;
+      shortfall = Number((swapped as { shortfall_units?: number } | null)?.shortfall_units ?? 0);
     }
 
     return json({
@@ -371,6 +410,9 @@ Deno.serve(async (req: Request) => {
       // the honest outcome, and the user should know why it is short.
       trimmed: wanted - accepted.length,
       violations,
+      // Nonzero only when a swap inside an approved plan could not fully claim
+      // what the replacement needs. Said plainly rather than hidden.
+      shortfall_units: shortfall,
     });
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e), 502);

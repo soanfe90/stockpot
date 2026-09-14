@@ -93,6 +93,14 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   quantities. Anything later has to fork through `adapt_recipe`.
 - **Moving a meal is not a stock operation.** `reschedule_slot` touches no
   reservation, and derives `notify_at` rather than leaving it behind.
+- **Swapping a meal moves its claim, never duplicates it.** generate-plan
+  writes the replacement unreserved, then `swap_slot` retires the old meal and
+  reserves the new one in one transaction — so a failed generation changes
+  nothing, and the plan never holds two meals for one sitting. Reading the
+  pantry for a swap needs the plan's state: a draft's siblings are invisible to
+  `product_stock` and must be subtracted, an approved plan's are already inside
+  `qty_reserved` and must not be, and the meal being replaced is holding a claim
+  its replacement is entitled to spend.
 - **A saved password goes in the device keystore, never AsyncStorage.**
   `src/lib/credentials.ts` keeps the email in AsyncStorage (not a secret) and
   the password only in expo-secure-store, only when asked for. It is

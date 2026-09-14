@@ -97,7 +97,12 @@ export default function MealScreen() {
   /** A swap keeps the plan, the slot and the time; only the dish changes. */
   function regenerate() {
     if (!meal || !household) return;
-    Alert.alert('Swap this meal?', 'Stockpot suggests a different dish from what is left in the pantry.', [
+    Alert.alert(
+      'Swap this meal?',
+      plan?.status === 'draft'
+        ? 'Stockpot suggests a different dish from what is left in the pantry.'
+        : 'Stockpot suggests a different dish, and the ingredients this one is holding pass to it.',
+      [
       { text: 'Keep it', style: 'cancel' },
       {
         text: 'Swap',
@@ -113,7 +118,8 @@ export default function MealScreen() {
             router.back();
           }),
       },
-    ]);
+      ]
+    );
   }
 
   if (loading) return <Loading />;
@@ -127,6 +133,11 @@ export default function MealScreen() {
 
   const draft = plan.status === 'draft';
   const movable = meal.status === 'planned';
+  // Swapping works in an approved plan too: swap_slot moves the reservation
+  // from the old meal to its replacement in one transaction. Only a meal
+  // already on the stove is fixed, and only a finished plan has nothing to
+  // swap within.
+  const swappable = movable && (plan.status === 'draft' || plan.status === 'active');
   const timeChanged = minutes !== minutesOfDay(meal.scheduled_at);
   const alreadyIn = new Set(ingredients.map((i) => i.product_id).filter(Boolean) as string[]);
   const addable = products.filter((p) => !alreadyIn.has(p.id) && p.qty_total - p.qty_reserved > 0);
@@ -214,12 +225,13 @@ export default function MealScreen() {
           )
         ) : null}
 
-        {draft ? (
+        {swappable ? (
           <View style={{ gap: space.sm }}>
             <Button label="Swap for a different meal" variant="secondary" onPress={regenerate} busy={busy} />
             <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
-              Built from what is left once the rest of this plan is accounted for, so two meals never spend the same
-              food.
+              {draft
+                ? 'Built from what is left once the rest of this plan is accounted for, so two meals never spend the same food.'
+                : 'This meal is holding ingredients; its replacement takes them over, so nothing is released back to the shopping list by accident.'}
             </Text>
           </View>
         ) : null}
