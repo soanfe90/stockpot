@@ -57,8 +57,10 @@
     "test:db": "bash supabase/tests/run.sh",
     "typecheck": "tsc --noEmit",
     "test:budget": "node --experimental-strip-types --test supabase/functions/_shared/__tests__/*.test.ts",
-    "test": "npm run typecheck && npm run typecheck:functions && npm run test:budget",
-    "typecheck:functions": "tsc -p supabase/functions/tsconfig.json"
+    "test": "npm run typecheck && npm run typecheck:functions && npm run typecheck:tests && npm run test:budget && npm run test:shape",
+    "typecheck:functions": "tsc -p supabase/functions/tsconfig.json",
+    "test:shape": "node --experimental-strip-types --test src/lib/__tests__/*.test.ts",
+    "typecheck:tests": "tsc -p src/lib/__tests__/tsconfig.json"
   },
   "private": true
 }

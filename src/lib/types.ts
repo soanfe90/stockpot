@@ -67,6 +67,18 @@ export const LLM_MODELS: { value: string; label: string; hint: string }[] = [
   },
 ];
 
+/** The meals of a day, in the order they happen. */
+export const MEAL_SLOTS: { value: string; label: string }[] = [
+  { value: 'breakfast', label: 'Breakfast' },
+  { value: 'lunch', label: 'Lunch' },
+  { value: 'snack', label: 'Snack' },
+  { value: 'dinner', label: 'Dinner' },
+];
+
+/** Mirrors the user_profile.planned_meals column default: three a day, no
+ *  snack. Snacks are opt-in, and two meals a day is an ordinary answer. */
+export const DEFAULT_PLANNED_MEALS = ['breakfast', 'lunch', 'dinner'];
+
 export type UserProfile = {
   user_id: string;
   display_name: string | null;
@@ -80,6 +92,8 @@ export type UserProfile = {
   shopping_days: number[];
   /** Null means whatever the server is configured to use. */
   llm_model: string | null;
+  /** Which meals of the day to generate. */
+  planned_meals: string[];
   /** Null until the preference questions have been answered. Empty arrays are
    *  a valid answer, so they cannot stand in for "not asked yet". */
   onboarded_at: string | null;

@@ -226,6 +226,16 @@ Deno.serve(async (req: Request) => {
     /** Gemini model this member chose. Checked against an allowlist before it
      *  reaches an API; anything unrecognised falls back to the default. */
     model?: string | null;
+    /**
+     * Exactly which meals to fill, as day offsets and categories.
+     *
+     * The function used to work this out itself as "three a day for however
+     * many days", which was three assumptions at once: that a household eats
+     * three meals, that it eats them every day, and that a plan starting today
+     * starts at breakfast even when it is seven in the evening. The client
+     * knows all three answers; it should just say.
+     */
+    slots?: { day_offset: number; category: (typeof CATEGORIES)[number] }[];
     /** Set to swap one meal of an existing draft for a fresh suggestion,
      *  keeping its plan, its slot in the day, and its time. */
     replace_slot_id?: string;
@@ -359,8 +369,16 @@ Deno.serve(async (req: Request) => {
       return fail('There is nothing left in the pantry to build a different meal from.', 409);
     }
 
-    const days = replacing ? 1 : body.scope === 'week' ? 7 : 1;
-    const wanted = replacing || body.scope === 'single' ? 1 : days * 3;
+    // The requested shape, or the old assumption for a caller that did not
+    // send one.
+    const requested = replacing
+      ? [{ day_offset: 0, category: replacing.category }]
+      : (body.slots?.length
+          ? body.slots
+          : defaultShape(body.scope === 'week' ? 7 : 1));
+
+    const days = replacing ? 1 : Math.max(1, ...requested.map((s) => s.day_offset + 1));
+    const wanted = requested.length;
 
     // A swap lives inside a plan that already made its shopping decisions, so
     // it gets no fresh allowance: it has to work with what is there.
@@ -443,8 +461,11 @@ Deno.serve(async (req: Request) => {
                     `meals are spoken for.`,
                   ].join('\n')
                 : [
-                    `Plan ${wanted} meal${wanted === 1 ? '' : 's'} across ${days} day${days === 1 ? '' : 's'},`,
-                    `starting on ${body.starts_on} (day_offset 0).`,
+                    `Fill exactly these meals, one dish each, and no others:`,
+                    JSON.stringify(requested),
+                    `day_offset 0 is ${body.starts_on}. Some days may want fewer meals than others,`,
+                    `and some may be missing entirely -- that is the household's week, not an oversight`,
+                    `to correct.`,
                   ].join('\n'),
               violations.length
                 ? `\nYour previous attempt over-allocated the pantry:\n${violations.join('\n')}\nStay inside those amounts.`
@@ -721,4 +742,16 @@ function tripsOf(purchases: Purchase[], startsOn: string): { on: string; items: 
   return [...byDay.entries()]
     .sort(([a], [b]) => a - b)
     .map(([day, items]) => ({ on: addDays(startsOn, day), items: items.sort() }));
+}
+
+/** Three meals a day, which is what the function assumed before a caller could
+ *  say otherwise. Kept for callers that still do not. */
+function defaultShape(days: number): { day_offset: number; category: (typeof CATEGORIES)[number] }[] {
+  const shape: { day_offset: number; category: (typeof CATEGORIES)[number] }[] = [];
+  for (let day = 0; day < days; day++) {
+    for (const category of ['breakfast', 'lunch', 'dinner'] as const) {
+      shape.push({ day_offset: day, category });
+    }
+  }
+  return shape;
 }

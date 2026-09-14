@@ -35,6 +35,27 @@ function tzOffsetMinutes(): number {
   return -new Date().getTimezoneOffset();
 }
 
+/**
+ * Pushes the rest of a plan back by whole days, keeping its shape.
+ *
+ * Not the same as skipping. Being away for two days does not mean giving up on
+ * Wednesday's dinner; it means eating it on Friday, and the ingredients stay
+ * spoken for by the same meals throughout.
+ */
+export async function shiftPlan(planId: string, from: string, days: number): Promise<number> {
+  const { data, error } = await supabase.rpc('shift_plan', {
+    p_plan_id: planId,
+    p_from: from,
+    p_days: days,
+  });
+  if (error) throw error;
+  return (data as number) ?? 0;
+}
+
+export { mealsLeftToday, planShape, type PlanSlotRequest } from './plan-shape';
+
+import type { PlanSlotRequest } from './plan-shape';
+
 export type GenerateResult = {
   plan_id: string;
   slots: number;
@@ -57,6 +78,7 @@ export async function generatePlan(
   mealTimes?: MealTimes,
   shoppingDays?: number[],
   model?: string | null,
+  slots?: PlanSlotRequest[],
   /** Abort the wait. The request is dropped; see cancelling in plan/create. */
   signal?: AbortSignal
 ): Promise<GenerateResult> {
@@ -70,6 +92,7 @@ export async function generatePlan(
       meal_times: mealTimes,
       shopping_days: shoppingDays,
       model,
+      slots,
     },
     signal,
   });

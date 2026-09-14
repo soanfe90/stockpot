@@ -84,3 +84,31 @@ do $$ begin
   end;
 end $$;
 \echo '  [7] a model outside the allowlist is refused'
+
+-- ------------------------------------------------------- meals per day ---
+
+do $$
+declare p user_profile;
+begin
+  p := save_preferences();
+  if p.planned_meals <> array['breakfast', 'lunch', 'dinner']
+    then raise exception 'FAIL: three meals a day should be the default, got %', p.planned_meals; end if;
+
+  -- Two meals a day is an ordinary answer, and snacks are opt-in.
+  p := save_preferences(null, '{}', '{}', '{}', '{}', null, null, null, array['lunch', 'dinner']);
+  if p.planned_meals <> array['lunch', 'dinner'] then raise exception 'FAIL: planned meals not saved'; end if;
+
+  p := save_preferences(null, array['Vegan'], '{}', '{}', '{}');
+  if p.planned_meals <> array['lunch', 'dinner']
+    then raise exception 'FAIL: a diet edit reset the meals to %', p.planned_meals; end if;
+end $$;
+\echo '  [8] which meals to plan is a preference, kept across other edits'
+
+do $$ begin
+  begin
+    perform save_preferences(null, '{}', '{}', '{}', '{}', null, null, null, '{}');
+    raise exception 'FAIL: a plan of no meals at all was accepted';
+  exception when check_violation then null;
+  end;
+end $$;
+\echo '  [9] but planning no meals at all is not one'

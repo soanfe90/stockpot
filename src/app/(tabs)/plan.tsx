@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, EmptyState, ErrorNote, Eyebrow, FloatingBar, Icon, Loading, useFloatingBar } from '@/components/ui/kit';
-import { cancelPlan, loadSchedule, mealLabel, skipMeal } from '@/lib/planning';
+import { cancelPlan, loadSchedule, mealLabel, shiftPlan, skipMeal, today } from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
 import type { ScheduledMeal } from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
@@ -55,6 +55,43 @@ export default function PlanScreen() {
               setError(errorMessage(e));
             }
           } },
+      ]
+    );
+  }
+
+  /**
+   * Life happened. The meals are not wrong, the dates are.
+   *
+   * Skipping would hand every ingredient back and throw the week away, which
+   * is a strange answer to "I am out on Thursday" -- the food is still in the
+   * house and the meals are still wanted, just later. Shifting keeps every
+   * reservation exactly where it is.
+   */
+  function postpone() {
+    if (!household || !meals.length) return;
+    const planId = meals[0].plan_id;
+
+    Alert.alert(
+      'Away for a few days?',
+      'The meals you have not cooked yet move back by the same number of days, keeping their order and their ' +
+        'ingredients. Nothing is skipped and nothing is released.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        ...[1, 2, 3].map((days) => ({
+          text: `${days} day${days === 1 ? '' : 's'}`,
+          onPress: async () => {
+            try {
+              const moved = await shiftPlan(planId, today(), days);
+              await load();
+              Alert.alert(
+                'Plan moved',
+                `${moved} meal${moved === 1 ? '' : 's'} pushed back ${days} day${days === 1 ? '' : 's'}.`
+              );
+            } catch (e) {
+              setError(errorMessage(e));
+            }
+          },
+        })),
       ]
     );
   }
@@ -185,7 +222,10 @@ export default function PlanScreen() {
       {meals.length ? (
         <FloatingBar {...bar.props}>
           <Button label="Plan more meals" variant="secondary" onPress={() => router.push('/plan/create')} />
-          <Button label="Delete this plan" variant="ghost" onPress={deletePlan} />
+          <View style={{ flexDirection: 'row', gap: space.sm }}>
+            <Button label="Away for a few days" variant="ghost" onPress={postpone} style={{ flex: 1 }} />
+            <Button label="Delete" variant="ghost" onPress={deletePlan} />
+          </View>
         </FloatingBar>
       ) : null}
     </View>

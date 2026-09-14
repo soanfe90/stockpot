@@ -1,0 +1,15 @@
+{
+  "//": "These run under `node --experimental-strip-types`, not in the app, so they need Node's globals and the app's do not. Kept as its own project rather than widening the app's types, which would let app code reach for Node APIs that do not exist on a phone.",
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": [
+    "*.ts"
+  ],
+  "exclude": []
+}

@@ -23,9 +23,11 @@ import {
   CUISINES,
   DEFAULT_MEAL_TIMES,
   DEFAULT_SHOPPING_DAYS,
+  DEFAULT_PLANNED_MEALS,
   DIET_TYPES,
   GOALS,
   LLM_MODELS,
+  MEAL_SLOTS,
   WEEKDAYS,
   type MealTimes,
 } from '@/lib/types';
@@ -64,6 +66,7 @@ export default function SettingsScreen() {
   const [mealTimes, setMealTimes] = useState<MealTimes>(profile?.meal_times ?? DEFAULT_MEAL_TIMES);
   const [shoppingDays, setShoppingDays] = useState<number[]>(profile?.shopping_days ?? DEFAULT_SHOPPING_DAYS);
   const [llmModel, setLlmModel] = useState<string>(profile?.llm_model ?? LLM_MODELS[0].value);
+  const [plannedMeals, setPlannedMeals] = useState<string[]>(profile?.planned_meals ?? DEFAULT_PLANNED_MEALS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -162,7 +165,7 @@ export default function SettingsScreen() {
     setBusy(true);
     setError(null);
     try {
-      await savePreferences({ diets, cuisines, goals, mealTimes, shoppingDays, llmModel });
+      await savePreferences({ diets, cuisines, goals, mealTimes, shoppingDays, llmModel, plannedMeals });
       if (first) router.replace('/');
       else router.back();
     } catch (e) {
@@ -220,6 +223,39 @@ export default function SettingsScreen() {
         <Group
           title="Your week"
           note="When you eat and when you can shop. Together these decide what a plan can ask of you.">
+          <Card>
+            <View style={{ gap: space.md }}>
+              <View style={{ gap: space.xs }}>
+                <Eyebrow>Meals you plan</Eyebrow>
+                <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
+                  Only these are generated. Two meals a day is an ordinary answer, and snacks are opt-in — a plan
+                  should not invent a breakfast nobody eats.
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+                {MEAL_SLOTS.map((meal) => (
+                  <Toggle
+                    key={meal.value}
+                    label={meal.label}
+                    accessibilityLabel={meal.label}
+                    on={plannedMeals.includes(meal.value)}
+                    onPress={() =>
+                      setPlannedMeals((prev) =>
+                        prev.includes(meal.value)
+                          ? // Never all the way to nothing: a plan of no meals
+                            // is not a preference, it is a broken form.
+                            prev.length > 1
+                            ? prev.filter((m) => m !== meal.value)
+                            : prev
+                          : [...prev, meal.value]
+                      )
+                    }
+                  />
+                ))}
+              </View>
+            </View>
+          </Card>
+
           <Card>
             <View style={{ gap: space.lg }}>
               <View style={{ gap: space.xs }}>

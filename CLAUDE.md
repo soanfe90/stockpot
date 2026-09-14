@@ -146,6 +146,17 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   made.
 - **A template is a suggestion, not a copy.** `apply_template` produces a draft
   that is re-checked against the pantry as it is on the day it is applied.
+- **The client decides a plan's shape, not the generator.** `planShape` in
+  `src/lib/plan-shape.ts` builds the list of (day, category) slots from three
+  answers — which meals the household plans, how many days, and what time it
+  already is — and generate-plan fills exactly those. It assumed three meals a
+  day for everyone, which also meant a plan made in the evening scheduled that
+  morning's breakfast. Kept out of `planning.ts` so it can be tested without a
+  React Native runtime, like `budget.ts` is.
+- **Being away is not skipping.** `shift_plan` moves the meals not yet started
+  and leaves every reservation exactly where it is; `skip_meal` hands the
+  ingredients back. Offering only the second made "I am out on Thursday" mean
+  "throw the week away".
 - **Mealtimes belong to the member, not the code.** `user_profile.meal_times`
   holds minutes from local midnight; `meal_offset()` reads it in SQL and the
   client sends it to generate-plan. The defaults in three places —

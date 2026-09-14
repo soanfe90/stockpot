@@ -6,15 +6,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Button, Card, Chips, ErrorNote, Field, Segmented, Title } from '@/components/ui/kit';
 import { Working } from '@/components/ui/working';
-import { generatePlan, nextFreeDay, today } from '@/lib/planning';
+import { generatePlan, mealsLeftToday, nextFreeDay, planShape, today } from '@/lib/planning';
 import { formatDate } from '@/lib/expiry';
 import { errorMessage } from '@/lib/supabase';
 import {
   CUISINES,
   DEFAULT_MEAL_TIMES,
+  DEFAULT_PLANNED_MEALS,
   DEFAULT_SHOPPING_DAYS,
   DIET_TYPES,
   GOALS,
+  MEAL_SLOTS,
   type PlanScope,
 } from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
@@ -39,8 +41,16 @@ export default function CreatePlanScreen() {
   // deciding which is right: somebody who just cleared their week means now.
   const [nextFree, setNextFree] = useState<string | null>(null);
   const [startsOn, setStartsOn] = useState<string | null>(null);
+  // Which meal of the first day to begin at. Null means "whatever has not
+  // happened yet", which is right almost always.
+  const [firstMeal, setFirstMeal] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const navigation = useNavigation();
+
+  const leftToday = mealsLeftToday(
+    profile?.planned_meals ?? DEFAULT_PLANNED_MEALS,
+    profile?.meal_times ?? DEFAULT_MEAL_TIMES
+  );
 
   // The cover blocks the screen, but the header sits above it in the native
   // stack -- so the way out has to be taken off the header too, or the lock is
@@ -66,13 +76,26 @@ export default function CreatePlanScreen() {
     if (!household) return;
     const controller = new AbortController();
     abort.current = controller;
+
+    const from = startsOn ?? (await nextFreeDay(household.id));
+    const shape = planShape({
+      days: scope === 'week' ? 7 : 1,
+      meals: profile?.planned_meals ?? DEFAULT_PLANNED_MEALS,
+      mealTimes: profile?.meal_times ?? DEFAULT_MEAL_TIMES,
+      startsToday: from === today(),
+      firstMeal,
+    });
+    if (shape.length === 0) {
+      setError('Every meal you plan has already passed today. Start tomorrow, or pick a later meal.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const result = await generatePlan(
         household.id,
         scope,
-        startsOn ?? (await nextFreeDay(household.id)),
+        from,
         {
           diets,
           cuisines,
@@ -85,6 +108,7 @@ export default function CreatePlanScreen() {
         // the review screen can rebuild it on different ones before approving.
         profile?.shopping_days ?? DEFAULT_SHOPPING_DAYS,
         profile?.llm_model ?? null,
+        shape,
         controller.signal
       );
       router.replace(`/plan/${result.plan_id}`);
@@ -130,6 +154,29 @@ export default function CreatePlanScreen() {
             </View>
           ) : startsOn ? (
             <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>Starting today.</Text>
+          ) : null}
+
+          {/* Only when starting today, and only when part of the day is still
+              ahead: a plan that begins at breakfast is wrong at seven in the
+              evening, and the clock already knows that. This is for overriding
+              it -- somebody who has eaten lunch but wants to start at dinner
+              rather than have Stockpot decide. */}
+          {startsOn === today() && leftToday.length > 1 ? (
+            <View style={{ gap: space.sm, paddingTop: space.xs }}>
+              <Segmented
+                label="Beginning at"
+                options={leftToday.map((m) => ({
+                  value: m,
+                  label: MEAL_SLOTS.find((s) => s.value === m)?.label ?? m,
+                }))}
+                value={firstMeal ?? leftToday[0]}
+                onChange={setFirstMeal}
+              />
+              <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
+                Meals whose time has already passed today are left out — there is no use planning this morning's
+                breakfast.
+              </Text>
+            </View>
           ) : null}
         </View>
 

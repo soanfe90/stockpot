@@ -14,6 +14,7 @@ type Preferences = {
   mealTimes?: MealTimes;
   shoppingDays?: number[];
   llmModel?: string | null;
+  plannedMeals?: string[];
 };
 
 type HouseholdContextValue = {
@@ -102,7 +103,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   );
 
   const savePreferences = useCallback(
-    async ({ diets, cuisines, goals, mealTimes, shoppingDays, llmModel }: Preferences) => {
+    async ({ diets, cuisines, goals, mealTimes, shoppingDays, llmModel, plannedMeals }: Preferences) => {
       const { error } = await supabase.rpc('save_preferences', {
         p_diet_types: diets,
         p_cuisines: cuisines,
@@ -110,6 +111,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         p_meal_times: mealTimes ?? null,
         p_shopping_days: shoppingDays ?? null,
         p_llm_model: llmModel ?? null,
+        p_planned_meals: plannedMeals ?? null,
       });
       if (error) throw error;
       await refresh();
