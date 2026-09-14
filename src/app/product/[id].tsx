@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { StatePill } from '@/components/inventory/product-row';
 import { Button, Card, ErrorNote, Eyebrow, Field, Loading, Segmented } from '@/components/ui/kit';
+import { usefulLifeFor } from '@/lib/categories';
 import { formatDate, isoDateIn, stockState } from '@/lib/expiry';
 import { errorMessage, supabase } from '@/lib/supabase';
 import { STORAGE_PLACES, type InventoryLot, type Product, type StoragePlace } from '@/lib/types';
@@ -187,6 +188,19 @@ export default function ProductScreen() {
     }
   }
 
+  /**
+   * The shelf decides how long it keeps, so choosing one re-dates the
+   * suggestion. Only the suggestion: a date already typed by hand is left
+   * alone, since the whole point of typing it was that the packet knows better.
+   */
+  function applyAddStorage(next: StoragePlace) {
+    if (!product) return;
+    setAddStorage(next);
+    if (addExpiry === isoDateIn(usefulLifeFor(product.category, product.default_useful_life_days, product.storage, addStorage))) {
+      setAddExpiry(isoDateIn(usefulLifeFor(product.category, product.default_useful_life_days, product.storage, next)));
+    }
+  }
+
   function saveUsefulLife() {
     const days = Number.parseInt(usefulLife, 10);
     if (!Number.isFinite(days) || days < 0 || days > 3650) {
@@ -224,6 +238,17 @@ export default function ProductScreen() {
     );
   }
 
+  // Two lives: what this product keeps on its usual shelf, and what it would
+  // keep on the one this lot is going to.
+  const usualLife = product.default_useful_life_days;
+  const lotLife = usefulLifeFor(product.category, usualLife, product.storage, addStorage);
+  const expiryReason =
+    addStorage === product.storage
+      ? `Pre-filled from this product's useful life.`
+      : lotLife > usualLife
+        ? `Longer than its usual ${usualLife} days, because this lot is going in the ${addStorage}.`
+        : `Shorter than its usual ${usualLife} days, because this lot is going in the ${addStorage}.`;
+
   const total = lots.reduce((sum, lot) => sum + Number(lot.qty), 0);
   const nextExpiry = lots.find((lot) => Number(lot.qty) > 0)?.expires_on ?? null;
   const state = stockState(total, nextExpiry);
@@ -239,7 +264,7 @@ export default function ProductScreen() {
             <StatePill state={state} expiry={nextExpiry} />
           </View>
           <Text style={{ fontSize: 13, color: t.inkFaint }}>
-            {product.category} · {product.storage} · {product.default_useful_life_days} day useful life
+            {product.category} · usually the {product.storage} · {product.default_useful_life_days} days there
           </Text>
         </View>
 
@@ -291,13 +316,13 @@ export default function ProductScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               placeholder="YYYY-MM-DD"
-              hint={`Reads as ${formatDate(addExpiry)}. Pre-filled from this product's useful life.`}
+              hint={`Reads as ${formatDate(addExpiry)}. ${expiryReason}`}
             />
             <Segmented
               label="Stored in"
               options={STORAGE_PLACES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
               value={addStorage}
-              onChange={setAddStorage}
+              onChange={applyAddStorage}
             />
             <Button label="Add stock" onPress={addStock} busy={busy} />
           </View>
@@ -321,7 +346,14 @@ export default function ProductScreen() {
               onChangeText={setUsefulLife}
               keyboardType="number-pad"
               suffix="days"
-              hint={`Used to fill in an expiry date whenever you add stock without one. Existing lots keep their own dates.`}
+              hint={`How long it keeps in the ${product.storage}. Stock put somewhere else is dated from this — ${
+                product.storage === 'freezer' ? 'the fridge' : 'the freezer'
+              } gives it ${usefulLifeFor(
+                product.category,
+                usualLife,
+                product.storage,
+                product.storage === 'freezer' ? 'fridge' : 'freezer'
+              )} days. Existing lots keep the dates they were given.`}
             />
             <Button label="Save useful life" variant="secondary" onPress={saveUsefulLife} busy={busy} />
           </View>

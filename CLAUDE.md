@@ -27,6 +27,16 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   screen cannot silently fall back to the system font.
 - **Icons are Ionicons via `@expo/vector-icons`**; app icons are drawn by
   `scripts/make-icons.py`, so the mark can be changed without a design tool.
+- **Shelf life depends on the shelf.** A product stores one useful life, meaning
+  its life in `product.storage`; `useful_life_days()` scales it for any other
+  place, so a life someone typed in still travels sensibly. `add_stock` is the
+  only door stock comes through, so that is where the rule lives — and an
+  explicit `p_expires_on` always wins over anything inferred.
+- **`shelf_life_days()` / `natural_storage()` in SQL and `SHELF_LIFE` /
+  `NATURAL_STORAGE` in `src/lib/categories.ts` must agree.** The database is the
+  authority; the client copy exists only so a form can pre-fill a date without a
+  round trip. A scanned line carries no shelf, so `natural_storage()` is what
+  stops frozen food being dated as if it were in a cupboard.
 - **Sort by days-to-expiry first**, everywhere. That is the product's whole idea.
 - Every colour is defined for both light and dark in `themes`. A value present in
   only one scheme is a bug.

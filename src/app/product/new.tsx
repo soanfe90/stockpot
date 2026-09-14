@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Button, Card, ErrorNote, Eyebrow, Field, Segmented } from '@/components/ui/kit';
-import { CATEGORIES, DEFAULT_USEFUL_LIFE, type Category } from '@/lib/categories';
+import { CATEGORIES, NATURAL_STORAGE, shelfLife, type Category } from '@/lib/categories';
 import { daysUntil, formatDate, isoDateIn } from '@/lib/expiry';
 import { errorMessage, supabase } from '@/lib/supabase';
 import { STORAGE_PLACES, type StoragePlace } from '@/lib/types';
@@ -25,9 +25,9 @@ export default function NewProductScreen() {
   const [baseUnit, setBaseUnit] = useState<BaseUnit>('g');
   const [unitKey, setUnitKey] = useState('g');
   const [quantity, setQuantity] = useState('');
-  const [usefulLife, setUsefulLife] = useState(String(DEFAULT_USEFUL_LIFE.Produce));
-  const [expiry, setExpiry] = useState(isoDateIn(DEFAULT_USEFUL_LIFE.Produce));
-  const [storage, setStorage] = useState<StoragePlace>('fridge');
+  const [usefulLife, setUsefulLife] = useState(String(shelfLife('Produce', 'fridge')));
+  const [expiry, setExpiry] = useState(isoDateIn(shelfLife('Produce', 'fridge')));
+  const [storage, setStorage] = useState<StoragePlace>(NATURAL_STORAGE.Produce);
   const [lowThreshold, setLowThreshold] = useState('');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
@@ -47,10 +47,22 @@ export default function NewProductScreen() {
     if (days !== null && days >= 0) setUsefulLife(String(days));
   }
 
+  /**
+   * Category and storage together decide how long something keeps -- peas in
+   * the freezer are not peas in the fridge -- so changing either re-reads the
+   * shelf life. Both only ever move the *suggestion*: a date typed by hand
+   * survives, because applyExpiry is what writes the life in that direction.
+   */
   function applyCategory(next: Category) {
+    const place = NATURAL_STORAGE[next];
     setCategory(next);
-    applyUsefulLife(String(DEFAULT_USEFUL_LIFE[next]));
-    setStorage(next === 'Frozen' ? 'freezer' : next === 'Produce' || next === 'Dairy & Eggs' || next === 'Meat & Fish' ? 'fridge' : 'pantry');
+    setStorage(place);
+    applyUsefulLife(String(shelfLife(next, place)));
+  }
+
+  function applyStorage(next: StoragePlace) {
+    setStorage(next);
+    applyUsefulLife(String(shelfLife(category, next)));
   }
 
   function applyBaseUnit(next: BaseUnit) {
@@ -185,6 +197,7 @@ export default function NewProductScreen() {
               onChangeText={applyUsefulLife}
               keyboardType="number-pad"
               suffix="days"
+              hint={`Suggested for ${category.toLowerCase()} kept in the ${storage}. Stock you put somewhere else is dated from this.`}
             />
             <Field
               label="Expires on"
@@ -212,7 +225,7 @@ export default function NewProductScreen() {
           label="Stored in"
           options={STORAGE_PLACES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
           value={storage}
-          onChange={setStorage}
+          onChange={applyStorage}
         />
 
         <Field label="Notes" value={notes} onChangeText={setNotes} placeholder="Brand, size, where it lives" multiline />
