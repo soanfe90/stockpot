@@ -14,20 +14,8 @@ import { useHousehold } from '@/providers/household-provider';
 import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
-/**
- * Where the zoom sits along the lens's range, not a magnification.
- *
- * expo-camera's `zoom` is a 0-1 fraction of whatever the device can do, and
- * Android floors the resulting ratio at 1x -- so a real 0.5x ultra-wide is not
- * reachable through this prop at all, and a "2x" label would be a guess about
- * a maximum the app cannot read. These say what they actually are.
- */
-const ZOOM_STOPS = [
-  { value: 0, label: '1\u00d7' },
-  { value: 0.25, label: 'Closer' },
-  { value: 0.5, label: 'Close' },
-  { value: 0.75, label: 'Closest' },
-] as const;
+/** How far one press of the zoom buttons moves along the lens's range. */
+const ZOOM_STEP = 0.1;
 
 export default function CameraScreen() {
   const t = useTokens();
@@ -45,12 +33,24 @@ export default function CameraScreen() {
   // is what makes it re-converge on whatever is in front of it now. Small
   // print on a till roll needs that far more often than a normal photo does.
   const [focusing, setFocusing] = useState(false);
+  const [reticle, setReticle] = useState<{ x: number; y: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function refocus() {
+  /**
+   * Tapping the preview re-runs autofocus.
+   *
+   * expo-camera has no focus-*point* API, so where the tap landed cannot be
+   * passed to the camera -- what a tap can do is make it converge again on
+   * whatever is in front of it. The reticle is drawn at the tap anyway,
+   * because a control that does its work invisibly reads as a broken one, and
+   * this is the feedback that makes the gesture legible.
+   */
+  function focusAt(x: number, y: number) {
+    setReticle({ x, y });
     setFocusing(true);
     setTimeout(() => setFocusing(false), 120);
+    setTimeout(() => setReticle(null), 700);
   }
 
   /**
@@ -160,10 +160,25 @@ export default function CameraScreen() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Focus"
-        onPress={refocus}
+        onPress={(e) => focusAt(e.nativeEvent.locationX, e.nativeEvent.locationY)}
         style={StyleSheet.absoluteFill}
         {...pinch.panHandlers}
       />
+
+      {reticle ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: reticle.x - 36,
+            top: reticle.y - 36,
+            width: 72,
+            height: 72,
+            borderRadius: radius.md,
+            borderWidth: 1.5,
+            borderColor: '#fff' }}
+        />
+      ) : null}
 
       {/* Mode is chosen before the shot because it changes what the model is
           asked to do -- read a till roll, or identify objects. */}
@@ -179,8 +194,8 @@ export default function CameraScreen() {
           />
           <Text style={{ fontSize: 12, color: t.inkFaint, marginTop: space.sm, lineHeight: 17 }}>
             {kind === 'receipt'
-              ? 'Lay the receipt flat and fill the frame. Small print is what the scan reads. Pinch to zoom, tap to refocus.'
-              : 'Get the packaging labels in shot — weights and volumes come from them. Pinch to zoom, tap to refocus.'}
+              ? 'Lay the receipt flat and fill the frame. Small print is what the scan reads. Tap anywhere to focus, pinch or use the buttons to zoom.'
+              : 'Get the packaging labels in shot — weights and volumes come from them. Tap anywhere to focus, pinch or use the buttons to zoom.'}
           </Text>
         </View>
       </View>
@@ -213,34 +228,46 @@ export default function CameraScreen() {
           </View>
         ) : (
           <>
-            {/* Zoom presets, on the thumb's arc rather than up by the frame:
-                every one of these is pressed while the other hand is holding a
-                receipt flat. expo-camera takes a 0-1 fraction of whatever the
-                lens can do, so these are positions along that range -- the
-                phone decides what they come out as. */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-              {ZOOM_STOPS.map((stop) => (
-                <Pressable
-                  key={stop.value}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: Math.abs(zoom - stop.value) < 0.02 }}
-                  accessibilityLabel={stop.label}
-                  onPress={() => setZoom(stop.value)}
-                  hitSlop={6}
+            {/* Zoom, on the thumb's arc rather than up by the frame: these are
+                pressed while the other hand holds a receipt flat.
+
+                expo-camera takes a 0-1 fraction of whatever the lens can do,
+                and the app cannot read what that maximum is -- so the readout
+                is a position along the range and not a magnification. A "2x"
+                here would be a guess about someone else's hardware. */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+              <Chip
+                icon="remove"
+                label="Zoom out"
+                disabled={zoom <= 0}
+                onPress={() => setZoom((z) => Math.max(0, Math.round((z - ZOOM_STEP) * 100) / 100))}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Reset zoom"
+                onPress={() => setZoom(0)}
+                hitSlop={8}
+                style={{
+                  minWidth: 74,
+                  alignItems: 'center',
+                  paddingVertical: 6,
+                  borderRadius: radius.pill,
+                  backgroundColor: '#0009' }}>
+                <Text
                   style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: radius.pill,
-                    backgroundColor: Math.abs(zoom - stop.value) < 0.02 ? '#fff' : '#0009' }}>
-                  <Text
-                    style={{
-                      color: Math.abs(zoom - stop.value) < 0.02 ? '#111' : '#fff',
-                      fontSize: 12,
-                      fontFamily: fonts.semibold }}>
-                    {stop.label}
-                  </Text>
-                </Pressable>
-              ))}
+                    color: '#fff',
+                    fontSize: 12.5,
+                    fontFamily: fonts.semibold,
+                    fontVariant: ['tabular-nums'] }}>
+                  {zoom <= 0 ? 'No zoom' : `Zoom ${Math.round(zoom * 100)}%`}
+                </Text>
+              </Pressable>
+              <Chip
+                icon="add"
+                label="Zoom in"
+                disabled={zoom >= 1}
+                onPress={() => setZoom((z) => Math.min(1, Math.round((z + ZOOM_STEP) * 100) / 100))}
+              />
             </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xl }}>
@@ -263,12 +290,9 @@ export default function CameraScreen() {
                   borderColor: '#fff6',
                   opacity: pressed ? 0.7 : 1 })}
               />
-              <Chip icon="scan-outline" label="Refocus" onPress={refocus} />
+              <Chip icon="images-outline" label="Choose a photo instead" onPress={() => void pick()} />
             </View>
             <View style={{ flexDirection: 'row', gap: space.lg }}>
-              <Pressable accessibilityRole="button" onPress={() => void pick()} hitSlop={10}>
-                <Text style={{ color: '#fff', fontSize: 14, fontFamily: fonts.semibold }}>Choose photo</Text>
-              </Pressable>
               <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
                 <Text style={{ color: '#fff9', fontSize: 14, fontFamily: fonts.semibold }}>Cancel</Text>
               </Pressable>
@@ -286,16 +310,20 @@ function Chip({
   icon,
   label,
   active,
+  disabled,
   onPress }: {
   icon: IconName;
   label: string;
   active?: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
       onPress={onPress}
       hitSlop={8}
       style={({ pressed }) => ({
@@ -305,7 +333,7 @@ function Chip({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: active ? '#fff' : '#0009',
-        opacity: pressed ? 0.6 : 1 })}>
+        opacity: disabled ? 0.35 : pressed ? 0.6 : 1 })}>
       <Icon name={icon} size={20} color={active ? '#111' : '#fff'} />
     </Pressable>
   );
