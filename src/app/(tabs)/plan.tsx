@@ -191,8 +191,10 @@ export default function PlanScreen() {
             paddingBottom: space.md,
             backgroundColor: t.ground,
             borderTopWidth: StyleSheet.hairlineWidth * 2,
-            borderTopColor: t.line }}>
+            borderTopColor: t.line,
+            gap: space.sm }}>
           <Button label="Plan more meals" variant="secondary" onPress={() => router.push('/plan/create')} />
+          <Button label="Delete this plan" variant="ghost" onPress={deletePlan} />
         </View>
       ) : null}
     </View>
