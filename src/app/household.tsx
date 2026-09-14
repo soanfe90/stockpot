@@ -116,7 +116,7 @@ export default function HouseholdScreen() {
               hint={
                 invited
                   ? 'Filled in from the invite you opened. Tap join and you are in.'
-                  : 'Ask whoever is already in it — it is on their pantry screen, and in Preferences.'
+                  : 'Ask whoever is already in it — it is on their pantry screen, and in Settings.'
               }
             />
           )}

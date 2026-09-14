@@ -12,7 +12,7 @@ import {
   SummarySheet,
 } from '@/components/inventory/controls';
 import { CategoryHeader, ProductRow } from '@/components/inventory/product-row';
-import { Button, EmptyState, ErrorNote, FloatingBar, Loading, useFloatingBar } from '@/components/ui/kit';
+import { Button, EmptyState, ErrorNote, FloatingBar, Icon, Loading, useFloatingBar } from '@/components/ui/kit';
 import {
   applyFilters,
   EMPTY_FILTERS,
@@ -90,12 +90,22 @@ export default function InventoryScreen() {
               {summary.total} products · invite code {household?.invite_code}
             </Text>
           </View>
+          {/* A gear rather than a word: this stopped being three questions
+              about food a while ago, and it is the same control on every app
+              anyone has ever used. */}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Preferences"
-            onPress={() => router.push('/preferences')}
-            hitSlop={10}>
-            <Text style={{ color: t.accentText, fontSize: 13, fontFamily: fonts.semibold }}>Preferences</Text>
+            accessibilityLabel="Settings"
+            onPress={() => router.push('/settings')}
+            hitSlop={12}
+            style={({ pressed }) => ({
+              width: 40,
+              height: 40,
+              borderRadius: radius.pill,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: pressed ? t.accentWash : 'transparent' })}>
+            <Icon name="settings-outline" size={21} color={t.inkMuted} />
           </Pressable>
         </View>
 

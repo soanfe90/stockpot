@@ -74,17 +74,17 @@ function RootNavigator() {
     const root = segments[0] as string | undefined;
     const onSignIn = root === 'sign-in';
     const onOnboarding = root === 'household';
-    const onPreferences = root === 'preferences';
+    const onSettings = root === 'settings';
 
     if (!session) {
       if (!onSignIn) router.replace('/sign-in');
     } else if (!household) {
       if (!onOnboarding) router.replace('/household');
     } else if (!profile?.onboarded_at) {
-      if (!onPreferences) router.replace('/preferences');
+      if (!onSettings) router.replace('/settings');
     } else if (onSignIn || onOnboarding) {
-      // Preferences stay reachable once answered -- this is also the edit
-      // screen, so it must not bounce anyone back out.
+      // Settings stays reachable once the questions are answered -- it is the
+      // same screen, so it must not bounce anyone back out.
       router.replace('/');
     }
   }, [ready, session, household, profile, segments, router]);
@@ -105,7 +105,7 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="household" />
-        <Stack.Screen name="preferences" options={{ ...header, headerShown: true, title: 'Preferences' }} />
+        <Stack.Screen name="settings" options={{ ...header, headerShown: true, title: 'Settings' }} />
         <Stack.Screen name="product/new" options={{ ...header, presentation: 'modal', headerShown: true, title: 'Add product' }} />
         <Stack.Screen name="product/[id]" options={{ ...header, headerShown: true, title: 'Product' }} />
         <Stack.Screen name="capture/camera" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />

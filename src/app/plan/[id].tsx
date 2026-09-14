@@ -45,7 +45,7 @@ export default function ReviewPlanScreen() {
   const [busy, setBusy] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   // The days this plan was built around, editable here so a week can be
-  // reshaped before it is committed to rather than only in Preferences.
+  // reshaped before it is committed to rather than only in Settings.
   const [shopDays, setShopDays] = useState<number[] | null>(null);
   const [editingDays, setEditingDays] = useState(false);
   // The bar carries two actions on an approved plan and four on a draft, so
