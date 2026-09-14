@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, ErrorNote, Eyebrow, Loading } from '@/components/ui/kit';
 import { savePlanAsTemplate } from '@/lib/library';
-import { scheduleReminders } from '@/lib/notifications';
+import { remindersAvailable, scheduleReminders } from '@/lib/notifications';
 import { addPlanGaps, approvePlan, cancelPlan, loadPlan, loadSchedule, mealLabel } from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
 import type { MealPlan, PlanShortfall, ScheduledMeal } from '@/lib/types';
@@ -60,7 +60,11 @@ export default function ReviewPlanScreen() {
           `${meals.length} meal${meals.length === 1 ? '' : 's'} scheduled`,
           'Their ingredients are now reserved in your pantry.',
           gaps ? `${gaps} missing item${gaps === 1 ? '' : 's'} added to your shopping list.` : null,
-          reminders ? `${reminders} reminder${reminders === 1 ? '' : 's'} set for 30 minutes before.` : null,
+          reminders
+            ? `${reminders} reminder${reminders === 1 ? '' : 's'} set for 30 minutes before.`
+            : remindersAvailable()
+              ? null
+              : 'Reminders need a development build — they do not work in Expo Go.',
         ]
           .filter(Boolean)
           .join('\n'),
