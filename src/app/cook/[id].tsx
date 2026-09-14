@@ -5,7 +5,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, Card, ErrorNote, Eyebrow, Field, Loading } from '@/components/ui/kit';
+import { Button, Card, ErrorNote, Eyebrow, Field, FloatingBar, Loading, useFloatingBar } from '@/components/ui/kit';
 import { finishCooking, loadRecipe, mealLabel, startCooking } from '@/lib/planning';
 import { errorMessage, supabase } from '@/lib/supabase';
 import type { CookDeduction, MealSlot, Recipe, RecipeIngredient } from '@/lib/types';
@@ -19,6 +19,9 @@ export default function CookScreen() {
   const t = useTokens();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Measured rather than guessed: a fixed clearance hides the bottom of the
+  // scroll the moment the bar's contents change.
+  const bar = useFloatingBar();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   // Hands are covered in flour; the screen should not sleep mid-recipe.
@@ -217,7 +220,7 @@ export default function CookScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.ground }}>
-      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + 110, gap: space.xl }}>
+      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: bar.clearance, gap: space.xl }}>
         <View style={{ gap: space.sm }}>
           <Eyebrow color={t.accentText}>
             {mealLabel(slot.scheduled_at)} · {slot.category}
@@ -299,25 +302,13 @@ export default function CookScreen() {
         ) : null}
       </ScrollView>
 
-      <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          gap: space.sm,
-          paddingHorizontal: space.lg,
-          paddingTop: space.md,
-          paddingBottom: insets.bottom + space.md,
-          backgroundColor: t.ground,
-          borderTopWidth: StyleSheet.hairlineWidth * 2,
-          borderTopColor: t.line }}>
+      <FloatingBar {...bar.props}>
         {slot.status === 'cooking' ? (
           <Button label="Done cooking" onPress={() => setStage('summary')} />
         ) : (
           <Button label="Start cooking" onPress={begin} />
         )}
-      </View>
+      </FloatingBar>
     </View>
   );
 }

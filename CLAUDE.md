@@ -42,6 +42,11 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   authority; the client copy exists only so a form can pre-fill a date without a
   round trip. A scanned line carries no shelf, so `natural_storage()` is what
   stops frozen food being dated as if it were in a cupboard.
+- **A floating bottom bar measures itself.** Use `useFloatingBar()` with
+  `<FloatingBar>` from the kit and give the scroll `bar.clearance`; never type a
+  number into `paddingBottom` under a pinned bar. Every screen used to guess,
+  and every guess went stale the moment a button was added — which is how the
+  last meals of a generated plan ended up hidden behind four of them.
 - **Sort by days-to-expiry first**, everywhere. That is the product's whole idea.
 - Every colour is defined for both light and dark in `themes`. A value present in
   only one scheme is a bug.

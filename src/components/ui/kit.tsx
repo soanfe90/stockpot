@@ -465,3 +465,65 @@ export function Toggle({
     </Pressable>
   );
 }
+
+/* ------------------------------------------------------------ bottom bar -- */
+
+/**
+ * The bar of actions pinned to the bottom of a screen, and the clearance the
+ * scroll above it needs.
+ *
+ * Both halves live here because keeping them apart is what goes wrong: every
+ * screen used to pin a bar and then guess how tall it was, as a number typed
+ * into the scroll's paddingBottom. Add a button and the guess is wrong, and the
+ * last thing on the screen hides behind the bar -- which is exactly what
+ * happened to the final meals of a generated plan when the bar grew to four.
+ *
+ * `useFloatingBar` gives a screen the measured height and the props to apply:
+ *
+ *   const bar = useFloatingBar();
+ *   <ScrollView contentContainerStyle={{ paddingBottom: bar.clearance }} />
+ *   <FloatingBar {...bar.props}>…</FloatingBar>
+ */
+export function useFloatingBar(): {
+  clearance: number;
+  props: { onHeight: (height: number) => void };
+} {
+  // Seeded at roughly one button's worth so the first frame is close, then
+  // corrected the moment the bar reports its real size.
+  const [height, setHeight] = useState(92);
+  return {
+    clearance: height + space.md,
+    props: { onHeight: setHeight },
+  };
+}
+
+export function FloatingBar({
+  children,
+  onHeight,
+  row }: {
+  children: ReactNode;
+  onHeight: (height: number) => void;
+  /** Lay the actions out side by side rather than stacked. */
+  row?: boolean;
+}) {
+  const t = useTokens();
+  return (
+    <View
+      onLayout={(e) => onHeight(e.nativeEvent.layout.height)}
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        gap: space.sm,
+        flexDirection: row ? 'row' : 'column',
+        paddingHorizontal: space.lg,
+        paddingTop: space.md,
+        paddingBottom: space.md,
+        backgroundColor: t.ground,
+        borderTopWidth: StyleSheet.hairlineWidth * 2,
+        borderTopColor: t.line }}>
+      {children}
+    </View>
+  );
+}

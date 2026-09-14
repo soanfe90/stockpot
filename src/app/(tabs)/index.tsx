@@ -12,7 +12,7 @@ import {
   SummarySheet,
 } from '@/components/inventory/controls';
 import { CategoryHeader, ProductRow } from '@/components/inventory/product-row';
-import { Button, EmptyState, ErrorNote, Loading } from '@/components/ui/kit';
+import { Button, EmptyState, ErrorNote, FloatingBar, Loading, useFloatingBar } from '@/components/ui/kit';
 import {
   applyFilters,
   EMPTY_FILTERS,
@@ -30,6 +30,9 @@ export default function InventoryScreen() {
   const t = useTokens();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Measured rather than guessed: a fixed clearance hides the bottom of the
+  // list the moment the bar's contents change.
+  const bar = useFloatingBar();
   const { household } = useHousehold();
 
   const { products, aliases, loading, error, refresh } = useInventory(household?.id ?? null);
@@ -123,7 +126,7 @@ export default function InventoryScreen() {
         sections={sections}
         keyExtractor={(item) => item.id}
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ paddingBottom: 96 }}
+        contentContainerStyle={{ paddingBottom: bar.clearance }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.inkFaint} />}
         renderSectionHeader={({ section }) => (
           <CategoryHeader
@@ -160,20 +163,7 @@ export default function InventoryScreen() {
 
       {/* Summary on the left, capture on the right -- the two things you do
           from this screen, always in the same place. */}
-      <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          flexDirection: 'row',
-          gap: space.sm,
-          paddingHorizontal: space.lg,
-          paddingTop: space.md,
-          paddingBottom: space.md,
-          backgroundColor: t.ground,
-          borderTopWidth: StyleSheet.hairlineWidth * 2,
-          borderTopColor: t.line }}>
+      <FloatingBar row {...bar.props}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Stock summary"
@@ -189,7 +179,7 @@ export default function InventoryScreen() {
           <Text style={{ color: t.inkMuted, fontSize: 17, fontFamily: fonts.bold }}>i</Text>
         </Pressable>
         <Button label="Add products" onPress={() => setShowAdd(true)} style={{ flex: 1 }} />
-      </View>
+      </FloatingBar>
 
       <FilterSheet
         visible={showFilters}

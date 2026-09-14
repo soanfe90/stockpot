@@ -4,7 +4,7 @@ import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from '
 import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, EmptyState, ErrorNote, Eyebrow, Icon, Loading } from '@/components/ui/kit';
+import { Button, EmptyState, ErrorNote, Eyebrow, FloatingBar, Icon, Loading, useFloatingBar } from '@/components/ui/kit';
 import { cancelPlan, loadSchedule, mealLabel, skipMeal } from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
 import type { ScheduledMeal } from '@/lib/types';
@@ -16,6 +16,9 @@ export default function PlanScreen() {
   const t = useTokens();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Measured rather than guessed: a fixed clearance hides the bottom of the
+  // list the moment the bar's contents change.
+  const bar = useFloatingBar();
   const { household } = useHousehold();
 
   const [meals, setMeals] = useState<ScheduledMeal[]>([]);
@@ -82,7 +85,7 @@ export default function PlanScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: t.ground }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 96 }}
+        contentContainerStyle={{ paddingBottom: bar.clearance }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -180,22 +183,10 @@ export default function PlanScreen() {
       </ScrollView>
 
       {meals.length ? (
-        <View
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            paddingHorizontal: space.lg,
-            paddingTop: space.md,
-            paddingBottom: space.md,
-            backgroundColor: t.ground,
-            borderTopWidth: StyleSheet.hairlineWidth * 2,
-            borderTopColor: t.line,
-            gap: space.sm }}>
+        <FloatingBar {...bar.props}>
           <Button label="Plan more meals" variant="secondary" onPress={() => router.push('/plan/create')} />
           <Button label="Delete this plan" variant="ghost" onPress={deletePlan} />
-        </View>
+        </FloatingBar>
       ) : null}
     </View>
   );

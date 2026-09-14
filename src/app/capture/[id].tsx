@@ -2,10 +2,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DraftRow } from '@/components/inventory/draft-row';
-import { Button, EmptyState, ErrorNote, Eyebrow, Loading } from '@/components/ui/kit';
+import { Button, EmptyState, ErrorNote, Eyebrow, FloatingBar, Loading, useFloatingBar } from '@/components/ui/kit';
 import { commitCapture, deleteLine, loadCapture, rescan, reviewOrder, updateLine } from '@/lib/capture';
 import { formatDate } from '@/lib/expiry';
 import { errorMessage, supabase } from '@/lib/supabase';
@@ -17,7 +16,9 @@ import { useTokens } from '@/theme/use-tokens';
 export default function DraftTrayScreen() {
   const t = useTokens();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  // Measured rather than guessed: a fixed clearance hides the bottom of the
+  // scroll the moment the bar's contents change.
+  const bar = useFloatingBar();
   const { household } = useHousehold();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -132,7 +133,7 @@ export default function DraftTrayScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.ground }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: bar.clearance }}>
         <View style={{ padding: space.lg, gap: space.sm }}>
           <Eyebrow>Review before adding</Eyebrow>
           <Text style={{ fontSize: 24, fontFamily: fonts.bold, letterSpacing: -0.4, color: t.ink }}>
@@ -174,26 +175,14 @@ export default function DraftTrayScreen() {
         </View>
       </ScrollView>
 
-      <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          gap: space.sm,
-          paddingHorizontal: space.lg,
-          paddingTop: space.md,
-          paddingBottom: insets.bottom + space.md,
-          backgroundColor: t.ground,
-          borderTopWidth: StyleSheet.hairlineWidth * 2,
-          borderTopColor: t.line }}>
+      <FloatingBar {...bar.props}>
         <Button
           label={keeping.length ? `Add ${keeping.length} to inventory` : 'Nothing to add'}
           onPress={commit}
           busy={busy}
           disabled={!keeping.length}
         />
-      </View>
+      </FloatingBar>
     </View>
   );
 }

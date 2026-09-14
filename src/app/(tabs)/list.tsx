@@ -4,7 +4,7 @@ import { Pressable, RefreshControl, SectionList, StyleSheet, TextInput, View } f
 import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, EmptyState, ErrorNote, Loading } from '@/components/ui/kit';
+import { Button, EmptyState, ErrorNote, FloatingBar, Loading, useFloatingBar } from '@/components/ui/kit';
 import { useShoppingList } from '@/hooks/use-shopping-list';
 import { daysUntil, formatDate } from '@/lib/expiry';
 import { SOURCE_LABELS, type ItemSource, type ShoppingItem } from '@/lib/types';
@@ -18,6 +18,10 @@ export default function ShoppingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { household } = useHousehold();
+  // Measured rather than guessed: the bar's height is whatever its buttons
+  // come to, and a fixed clearance hides the bottom of the list the moment
+  // that changes.
+  const bar = useFloatingBar();
   const { sections, items, checked, remaining, loading, error, refresh, patch, remove, addManual } =
     useShoppingList(household?.id ?? null);
 
@@ -93,7 +97,7 @@ export default function ShoppingScreen() {
         keyExtractor={(item) => item.id}
         stickySectionHeadersEnabled={false}
         style={{ marginTop: space.md }}
-        contentContainerStyle={{ paddingBottom: 96 }}
+        contentContainerStyle={{ paddingBottom: bar.clearance }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.inkFaint} />}
         renderSectionHeader={({ section }) => (
           <Text
@@ -125,24 +129,13 @@ export default function ShoppingScreen() {
       />
 
       {items.length ? (
-        <View
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            paddingHorizontal: space.lg,
-            paddingTop: space.md,
-            paddingBottom: space.md,
-            backgroundColor: t.ground,
-            borderTopWidth: StyleSheet.hairlineWidth * 2,
-            borderTopColor: t.line }}>
+        <FloatingBar {...bar.props}>
           <Button
             label={checked.length ? `Finish purchase · ${checked.length}` : 'Tick what you bought'}
             disabled={!checked.length}
             onPress={() => router.push('/shopping/review')}
           />
-        </View>
+        </FloatingBar>
       ) : null}
     </View>
   );

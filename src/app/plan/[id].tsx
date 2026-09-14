@@ -2,9 +2,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, Card, ErrorNote, Eyebrow, Icon, Loading } from '@/components/ui/kit';
+import { Button, Card, ErrorNote, Eyebrow, FloatingBar, Icon, Loading, useFloatingBar } from '@/components/ui/kit';
 import { Working } from '@/components/ui/working';
 import { savePlanAsTemplate } from '@/lib/library';
 import { remindersAvailable, scheduleReminders } from '@/lib/notifications';
@@ -36,7 +35,6 @@ import { useTokens } from '@/theme/use-tokens';
 export default function ReviewPlanScreen() {
   const t = useTokens();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { household, profile } = useHousehold();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -50,6 +48,9 @@ export default function ReviewPlanScreen() {
   // reshaped before it is committed to rather than only in Preferences.
   const [shopDays, setShopDays] = useState<number[] | null>(null);
   const [editingDays, setEditingDays] = useState(false);
+  // The bar carries two actions on an approved plan and four on a draft, so
+  // the scroll above it cannot know its height without asking.
+  const bar = useFloatingBar();
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -240,7 +241,7 @@ export default function ReviewPlanScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.ground }}>
-      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + 120, gap: space.xl }}>
+      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: bar.clearance, gap: space.xl }}>
         <View style={{ gap: space.sm }}>
           <Eyebrow>{approved ? 'Approved plan' : 'Review before approving'}</Eyebrow>
           <Text style={{ fontSize: 24, fontFamily: fonts.bold, letterSpacing: -0.4, color: t.ink }}>
@@ -426,19 +427,7 @@ export default function ReviewPlanScreen() {
         ))}
       </ScrollView>
 
-      <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          gap: space.sm,
-          paddingHorizontal: space.lg,
-          paddingTop: space.md,
-          paddingBottom: insets.bottom + space.md,
-          backgroundColor: t.ground,
-          borderTopWidth: StyleSheet.hairlineWidth * 2,
-          borderTopColor: t.line }}>
+      <FloatingBar {...bar.props}>
         {approved ? (
           <>
             <Button label="Save to library as a reusable plan" variant="secondary" onPress={saveAsTemplate} />
@@ -453,7 +442,7 @@ export default function ReviewPlanScreen() {
             <Button label="Discard" variant="ghost" onPress={discard} />
           </>
         )}
-      </View>
+      </FloatingBar>
 
       {rebuilding ? (
         <Working
