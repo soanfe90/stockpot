@@ -40,10 +40,14 @@ export default function ProductScreen() {
     try {
       const [productRes, lotRes] = await Promise.all([
         supabase.from('product').select('*').eq('id', id).single(),
+        // Only what is actually there. A lot at zero counts for nothing in
+        // stock, expiry or cooking -- product_stock has always joined on
+        // qty > 0 -- so listing it here was showing a shelf full of ghosts.
         supabase
           .from('inventory_lot')
           .select('*')
           .eq('product_id', id)
+          .gt('qty', 0)
           .order('expires_on', { ascending: true, nullsFirst: false }),
       ]);
       if (productRes.error) throw productRes.error;

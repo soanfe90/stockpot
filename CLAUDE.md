@@ -12,7 +12,14 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   deltas under a row lock and append to `stock_movement`. Two members editing at
   once must not lose each other's writes.
 - **Products and lots are different things.** A `product` is the catalog entry;
-  an `inventory_lot` is a quantity with a date. Never collapse lots.
+  an `inventory_lot` is a quantity with a date. Never collapse lots — a finished
+  packet cannot be refilled, because what arrives has a different date. `add_stock`
+  retires the spent ones instead, and `product_stock` has always joined on
+  `qty > 0` so an empty lot counts for nothing in the meantime.
+- **A claim is a `reservation` row, not the `reserved_qty` counter.** `adjust_lot`
+  clamps the counter to whatever the lot now holds, so a lot corrected to zero
+  reads as reserving nothing while a meal is still pointing at it. Anything
+  deciding whether stock is owed to somebody must ask `reservation`.
 - **The freshness ramp is semantic.** `fresh` / `soon` / `urgent` / `gone` in
   `src/theme/tokens.ts` mean stock state and nothing else. It owns green, amber,
   orange and red, which is *why* the brand accent is a berry plum: a brand colour
