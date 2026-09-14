@@ -53,7 +53,13 @@ export default function ReviewPlanScreen() {
     try {
       await approvePlan(id);
       const gaps = shortfalls.length ? await addPlanGaps(id) : 0;
-      const reminders = await scheduleReminders(await loadSchedule(household.id));
+
+      // By this point the plan is approved and its ingredients are reserved.
+      // Reminders are a convenience on top, so a failure here must not be
+      // reported as a failed approval -- that leaves the user staring at an
+      // error for something that actually succeeded, and tapping approve again
+      // only tells them it is already approved.
+      const reminders = await scheduleReminders(await loadSchedule(household.id)).catch(() => 0);
       Alert.alert(
         'Plan approved',
         [

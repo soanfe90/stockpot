@@ -12,6 +12,7 @@
  * A development build gets the real thing.
  */
 
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 
 import type { ScheduledMeal } from './types';
@@ -21,12 +22,20 @@ type NotificationsModule = typeof import('expo-notifications');
 /** undefined = not tried yet, null = unavailable here. */
 let cached: NotificationsModule | null | undefined;
 
+/** Expo Go, as opposed to a development or production build. */
+const inExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
 function load(): NotificationsModule | null {
   if (cached !== undefined) return cached;
-  if (Platform.OS === 'web') {
+
+  // Ask before loading rather than catching afterwards. The module's failure in
+  // Expo Go escapes a try/catch around require(), so the only reliable guard is
+  // not to require it here at all.
+  if (Platform.OS === 'web' || inExpoGo) {
     cached = null;
     return cached;
   }
+
   try {
     // Required rather than imported so the throw is catchable: a static import
     // fails at module evaluation, before any of this can run.
