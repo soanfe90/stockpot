@@ -32,6 +32,11 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   place, so a life someone typed in still travels sensibly. `add_stock` is the
   only door stock comes through, so that is where the rule lives — and an
   explicit `p_expires_on` always wins over anything inferred.
+- **A location is never written without the date that follows from it.**
+  `move_lot` re-dates a lot (scaling the life it has *left*, since freezing
+  arrests decay from the moment it goes in) and `set_product_storage` translates
+  `default_useful_life_days`. Never `update` `storage` on `product` or
+  `inventory_lot` directly — that is exactly how a shelf and a date come apart.
 - **`shelf_life_days()` / `natural_storage()` in SQL and `SHELF_LIFE` /
   `NATURAL_STORAGE` in `src/lib/categories.ts` must agree.** The database is the
   authority; the client copy exists only so a form can pre-fill a date without a

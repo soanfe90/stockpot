@@ -110,3 +110,110 @@ begin
     then raise exception 'FAIL: ice cream was dated as if it were left on a shelf'; end if;
 end $$;
 \echo '  [6] a line with no shelf lands where its category belongs, not the cupboard'
+
+-- ------------------------------------------------ moving food re-dates it ---
+
+insert into product (household_id, name, category, base_unit, display_unit, storage, default_useful_life_days)
+values (:'hh', 'Espinacas', 'Produce', 'g', 'g', 'fridge', 7) returning id as spin \gset
+
+do $$
+declare
+  lot   inventory_lot;
+  moved inventory_lot;
+begin
+  lot := add_stock((select id from product where name = 'Espinacas'), 400, null, current_date, 'fridge');
+  if lot.expires_on <> current_date + 7 then raise exception 'FAIL: bad starting date'; end if;
+
+  moved := move_lot(lot.id, 'freezer');
+  if moved.storage <> 'freezer' then raise exception 'FAIL: the lot did not move'; end if;
+  if moved.expires_on <= current_date + 30
+    then raise exception 'FAIL: freezing left the date at %', moved.expires_on; end if;
+  if moved.qty <> lot.qty then raise exception 'FAIL: moving a lot changed its quantity'; end if;
+end $$;
+\echo '  [7] freezing a lot pushes its date out'
+
+do $$
+declare
+  lot   inventory_lot;
+  moved inventory_lot;
+begin
+  -- Two days left, not seven: what scales is the life that is *left*, because
+  -- freezing arrests decay from the moment it goes in.
+  lot := add_stock((select id from product where name = 'Espinacas'), 100, current_date + 2, current_date, 'fridge');
+  moved := move_lot(lot.id, 'freezer');
+  if moved.expires_on > current_date + 100
+    then raise exception 'FAIL: a nearly-gone bag was given a whole freezer life (%)', moved.expires_on; end if;
+  if moved.expires_on <= current_date + 2
+    then raise exception 'FAIL: freezing should still buy it time'; end if;
+end $$;
+\echo '  [8] what scales is the life left, not the life it started with'
+
+do $$
+declare
+  lot   inventory_lot;
+  moved inventory_lot;
+begin
+  lot   := add_stock((select id from product where name = 'Espinacas'), 200, current_date + 200, current_date, 'freezer');
+  moved := move_lot(lot.id, 'fridge');
+  if moved.expires_on > current_date + 14
+    then raise exception 'FAIL: thawing should give days back, not months (%)', moved.expires_on; end if;
+end $$;
+\echo '  [9] taking it out of the freezer gives the days back'
+
+do $$
+declare
+  lot   inventory_lot;
+  moved inventory_lot;
+begin
+  lot   := add_stock((select id from product where name = 'Espinacas'), 50, current_date - 3, current_date - 10, 'fridge');
+  moved := move_lot(lot.id, 'freezer');
+  if moved.expires_on <> current_date - 3
+    then raise exception 'FAIL: the freezer does not un-expire food'; end if;
+end $$;
+\echo ' [10] food already past its date is not rescued by the freezer'
+
+do $$
+declare prod product;
+begin
+  prod := set_product_storage((select id from product where name = 'Espinacas'), 'freezer');
+  if prod.storage <> 'freezer' then raise exception 'FAIL: the product did not move'; end if;
+  -- The stored life means "in its usual place", so that number has to travel.
+  if prod.default_useful_life_days <= 30
+    then raise exception 'FAIL: the useful life still describes the fridge (% days)',
+      prod.default_useful_life_days; end if;
+end $$;
+\echo ' [11] changing where a product usually lives translates its useful life'
+
+do $$ begin
+  -- Its existing lots have shelves of their own; only move_lot moves those.
+  if exists (select 1 from inventory_lot
+              where product_id = (select id from product where name = 'Espinacas')
+                and storage = 'fridge')
+     is not true
+    then raise exception 'FAIL: changing the default swept the existing lots along with it'; end if;
+end $$;
+\echo ' [12] and leaves the lots already on other shelves where they are'
+
+-- The id is stashed while it is still readable: RLS would otherwise hide the
+-- row from the outsider, the lookup would come back null, and the test would
+-- pass on "unknown lot" without ever reaching the membership check.
+\o /dev/null
+select set_config('test.lot_id',
+                  (select id::text from inventory_lot
+                    where product_id = (select id from product where name = 'Espinacas') limit 1),
+                  false);
+\o
+
+set request.jwt.claim.sub = '0b0b0b0b-0c0c-0d0d-0e0e-0f0f0f0f0f0f';
+do $$ begin
+  begin
+    perform move_lot(current_setting('test.lot_id')::uuid, 'pantry');
+    raise exception 'FAIL: a non-member moved another household''s food';
+  exception when others then
+    if sqlstate = 'P0001' and sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlstate <> '42501' then
+      raise exception 'FAIL: expected a membership refusal, got % (%)', sqlstate, sqlerrm;
+    end if;
+  end;
+end $$;
+\echo ' [13] a non-member cannot move another household''s food'

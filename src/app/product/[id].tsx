@@ -153,9 +153,10 @@ export default function ProductScreen() {
   }
 
   /**
-   * Where a product lives and how long it keeps are plain attributes, not
-   * quantities, so they are written straight to the row -- the ledger rule is
-   * about stock amounts, and neither of these moves a gram.
+   * How long a product keeps is a plain attribute, not a quantity, so it is
+   * written straight to the row -- the ledger rule is about stock amounts, and
+   * this moves no grams. Its *shelf* is not written this way: changing that
+   * has to translate the life as well, which is what set_product_storage does.
    */
   async function updateProduct(patch: Partial<Product>) {
     if (!product) return;
@@ -172,14 +173,39 @@ export default function ProductScreen() {
     }
   }
 
-  /** Moving a lot to another shelf. Its quantity, its expiry and its place in
-   *  the oldest-first queue are all untouched. */
-  async function updateLot(lot: InventoryLot, patch: Partial<InventoryLot>) {
+  /**
+   * Moving a lot to another shelf re-dates it, because that is what moving it
+   * actually does to the food. The arithmetic is the database's -- what scales
+   * is the life the lot has *left*, and getting that wrong in two places is
+   * how the date and the shelf drift apart.
+   */
+  async function moveLot(lot: InventoryLot, storage: StoragePlace) {
     setBusy(true);
     setError(null);
     try {
-      const { error: updateError } = await supabase.from('inventory_lot').update(patch).eq('id', lot.id);
-      if (updateError) throw updateError;
+      const { error: moveError } = await supabase.rpc('move_lot', { p_lot_id: lot.id, p_storage: storage });
+      if (moveError) throw moveError;
+      await load();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Changing where a product usually lives translates its useful life with
+   *  it: that number means "how long this keeps in product.storage", so left
+   *  alone it would end up describing nowhere. */
+  async function moveProduct(storage: StoragePlace) {
+    if (!product) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { error: moveError } = await supabase.rpc('set_product_storage', {
+        p_product_id: product.id,
+        p_storage: storage,
+      });
+      if (moveError) throw moveError;
       await load();
     } catch (e) {
       setError(errorMessage(e));
@@ -288,7 +314,7 @@ export default function ProductScreen() {
                   first={index === 0}
                   busy={busy}
                   onCorrect={(value) => void correctLot(lot, value)}
-                  onMove={(storage) => void updateLot(lot, { storage })}
+                  onMove={(storage) => void moveLot(lot, storage)}
                 />
               ))}
             </View>
@@ -338,7 +364,7 @@ export default function ProductScreen() {
               label="Usually stored in"
               options={STORAGE_PLACES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
               value={product.storage}
-              onChange={(storage) => void updateProduct({ storage })}
+              onChange={(storage) => void moveProduct(storage)}
             />
             <Field
               label="Useful life"
@@ -435,12 +461,18 @@ function LotRow({
           />
           {/* Saved on tap rather than with the quantity: moving a bag to the
               freezer is its own decision, and usually the only one being made. */}
-          <Segmented
-            label="Stored in"
-            options={STORAGE_PLACES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
-            value={lot.storage}
-            onChange={onMove}
-          />
+          <View style={{ gap: space.sm }}>
+            <Segmented
+              label="Stored in"
+              options={STORAGE_PLACES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
+              value={lot.storage}
+              onChange={onMove}
+            />
+            <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
+              Moving it re-dates it from today. Freezing buys time on whatever life is left, and taking it back out
+              gives those days back.
+            </Text>
+          </View>
           <View style={{ flexDirection: 'row', gap: space.sm }}>
             <Button
               label="Save"
