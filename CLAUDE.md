@@ -53,6 +53,11 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   that is re-checked against the pantry as it is on the day it is applied.
 - **`meal_hour()` in SQL and `MEAL_HOUR` in generate-plan must agree** — both
   decide when a meal lands on the schedule.
+- **Realtime channels get a unique topic** via `uniqueChannelTopic()`, and their
+  effect depends only on the id it is keyed to. `supabase.channel(topic)` hands
+  back an existing channel for a repeated topic, and adding listeners to an
+  already-subscribed channel throws — which is what happens on every mount in
+  development, where React runs effects twice.
 
 ## Layout
 

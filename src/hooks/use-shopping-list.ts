@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { categoryRank } from '@/lib/categories';
-import { errorMessage, supabase } from '@/lib/supabase';
+import { errorMessage, supabase, uniqueChannelTopic } from '@/lib/supabase';
 import type { ItemSource, PurchaseResult, ShoppingItem, ShoppingList } from '@/lib/types';
 import { toBase, type BaseUnit } from '@/lib/units';
 
@@ -52,7 +52,7 @@ export function useShoppingList(householdId: string | null) {
   useEffect(() => {
     if (!list) return;
     const channel = supabase
-      .channel(`shopping:${list.id}`)
+      .channel(uniqueChannelTopic(`shopping:${list.id}`))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'shopping_item', filter: `list_id=eq.${list.id}` },
@@ -62,7 +62,9 @@ export function useShoppingList(householdId: string | null) {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [list]);
+    // Keyed on the id, not the object: refetching produces a new object and
+    // would otherwise rebuild the subscription every time.
+  }, [list?.id]);
 
   /** Ticking or editing pins the row, so the next refresh leaves it alone. */
   const patch = useCallback(async (item: ShoppingItem, changes: Partial<ShoppingItem>) => {

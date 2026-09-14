@@ -57,6 +57,20 @@ export const supabase = createClient(url, anonKey, {
   },
 });
 
+/**
+ * A channel topic unique to one subscription instance.
+ *
+ * `supabase.channel(topic)` returns the *existing* channel when one with that
+ * topic is already registered, and adding listeners to a channel that has been
+ * subscribed throws. Removal is asynchronous, so an effect that tears down and
+ * re-runs -- which React does on every mount in development -- can get the old,
+ * still-subscribed channel back. A fresh topic each time sidesteps that
+ * entirely.
+ */
+export function uniqueChannelTopic(prefix: string): string {
+  return `${prefix}:${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /** Postgres errors arrive with codes; surface the message the function raised
  *  rather than a generic failure, since these are written to be read. */
 export function errorMessage(error: unknown): string {

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { stockState, urgencyRank, type StockState } from '@/lib/expiry';
-import { errorMessage, supabase } from '@/lib/supabase';
+import { errorMessage, supabase, uniqueChannelTopic } from '@/lib/supabase';
 import type { Product, ProductStock, StockedProduct } from '@/lib/types';
 
 export type InventoryData = {
@@ -75,27 +75,36 @@ export function useInventory(householdId: string | null): InventoryData {
     void refresh();
   }, [refresh]);
 
+  // Held in a ref so the subscription below does not list refresh as a
+  // dependency: rebuilding a websocket every time a callback's identity
+  // changes is both wasteful and a source of races.
+  const refreshRef = useRef(refresh);
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
+
   // Two people, one pantry: another member's edits land here without a pull.
   useEffect(() => {
     if (!householdId) return;
+
     const channel = supabase
-      .channel(`inventory:${householdId}`)
+      .channel(uniqueChannelTopic(`inventory:${householdId}`))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'inventory_lot', filter: `household_id=eq.${householdId}` },
-        () => void refresh()
+        () => void refreshRef.current()
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'product', filter: `household_id=eq.${householdId}` },
-        () => void refresh()
+        () => void refreshRef.current()
       )
       .subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [householdId, refresh]);
+  }, [householdId]);
 
   return { products, aliases, loading, error, refresh };
 }
