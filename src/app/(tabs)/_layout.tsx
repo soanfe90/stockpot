@@ -15,14 +15,15 @@ export default function TabsLayout() {
         tabBarActiveTintColor: t.accentText,
         tabBarInactiveTintColor: t.inkFaint,
         tabBarLabelStyle: { fontFamily: fonts.semibold, fontSize: 11, letterSpacing: 0.1 },
+        // No explicit height or bottom padding: React Navigation sizes the bar
+        // around the device's safe area itself, and overriding the height is
+        // what pushed it under the gesture bar.
         tabBarStyle: {
           backgroundColor: t.surface,
           borderTopColor: t.line,
           borderTopWidth: StyleSheet.hairlineWidth * 2,
-          height: 62,
-          paddingTop: 6,
-          paddingBottom: 8,
         },
+        tabBarItemStyle: { paddingTop: 6, paddingBottom: 4 },
         sceneStyle: { backgroundColor: t.ground },
       }}>
       <Tabs.Screen

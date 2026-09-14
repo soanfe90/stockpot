@@ -93,7 +93,7 @@ export default function ShoppingScreen() {
         keyExtractor={(item) => item.id}
         stickySectionHeadersEnabled={false}
         style={{ marginTop: space.md }}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 96 }}
+        contentContainerStyle={{ paddingBottom: 96 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.inkFaint} />}
         renderSectionHeader={({ section }) => (
           <Text
@@ -133,7 +133,7 @@ export default function ShoppingScreen() {
             bottom: 0,
             paddingHorizontal: space.lg,
             paddingTop: space.md,
-            paddingBottom: insets.bottom + space.md,
+            paddingBottom: space.md,
             backgroundColor: t.ground,
             borderTopWidth: StyleSheet.hairlineWidth * 2,
             borderTopColor: t.line }}>

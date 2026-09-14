@@ -118,7 +118,7 @@ export default function LibraryScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl, gap: space.md }}
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl, gap: space.md }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

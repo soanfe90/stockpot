@@ -123,7 +123,7 @@ export default function InventoryScreen() {
         sections={sections}
         keyExtractor={(item) => item.id}
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 96 }}
+        contentContainerStyle={{ paddingBottom: 96 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.inkFaint} />}
         renderSectionHeader={({ section }) => (
           <CategoryHeader
@@ -170,7 +170,7 @@ export default function InventoryScreen() {
           gap: space.sm,
           paddingHorizontal: space.lg,
           paddingTop: space.md,
-          paddingBottom: insets.bottom + space.md,
+          paddingBottom: space.md,
           backgroundColor: t.ground,
           borderTopWidth: StyleSheet.hairlineWidth * 2,
           borderTopColor: t.line }}>

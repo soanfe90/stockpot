@@ -49,7 +49,7 @@ export default function PlanScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: t.ground }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 96 }}
+        contentContainerStyle={{ paddingBottom: 96 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -131,7 +131,7 @@ export default function PlanScreen() {
             bottom: 0,
             paddingHorizontal: space.lg,
             paddingTop: space.md,
-            paddingBottom: insets.bottom + space.md,
+            paddingBottom: space.md,
             backgroundColor: t.ground,
             borderTopWidth: StyleSheet.hairlineWidth * 2,
             borderTopColor: t.line }}>
