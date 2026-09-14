@@ -17,6 +17,7 @@ import {
   useFloatingBar,
 } from '@/components/ui/kit';
 import { Text } from '@/components/ui/text';
+import { clearPantry } from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
 import {
   CUISINES,
@@ -109,6 +110,52 @@ export default function SettingsScreen() {
           } },
       ]
     );
+  }
+
+  /**
+   * Starting the pantry over. Two different things get asked for under this,
+   * so both are offered rather than guessed at: throwing out the stock, and
+   * throwing out the record of what the household buys as well.
+   */
+  function confirmClear() {
+    if (!household) return;
+    Alert.alert(
+      'Empty the pantry?',
+      'Every lot of stock goes, and any plan holding it is cancelled first so nothing is left claiming food that ' +
+        'no longer exists.\n\n' +
+        'Keeping the product list means Stockpot still knows what you buy, so adding stock again is a tap. ' +
+        'Deleting it removes them entirely, along with their movement history.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clear stock only', style: 'destructive', onPress: () => void wipe(false) },
+        { text: 'Delete everything', style: 'destructive', onPress: () => void wipe(true) },
+      ]
+    );
+  }
+
+  async function wipe(deleteProducts: boolean) {
+    if (!household) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await clearPantry(household.id, deleteProducts);
+      Alert.alert(
+        'Pantry emptied',
+        [
+          `${r.lots_removed} lot${r.lots_removed === 1 ? '' : 's'} of stock removed.`,
+          r.products_removed ? `${r.products_removed} product${r.products_removed === 1 ? '' : 's'} deleted.` : null,
+          r.plans_cancelled
+            ? `${r.plans_cancelled} plan${r.plans_cancelled === 1 ? '' : 's'} cancelled, and their ingredients released.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join('\n')
+      );
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function save() {
@@ -240,26 +287,38 @@ export default function SettingsScreen() {
           <>
             <Group title="Household" note="Shared by everyone with the code below.">
               {household ? (
-                <Card>
-                  <View style={{ gap: space.md }}>
-                    <View style={{ gap: 2 }}>
-                      <Text style={{ fontSize: 16, fontFamily: fonts.semibold, color: t.ink }}>{household.name}</Text>
-                      <Text
-                        style={{
-                          fontSize: 12.5,
-                          color: t.inkFaint,
-                          letterSpacing: 1.5,
-                          fontVariant: ['tabular-nums'] }}>
-                        {household.invite_code}
+                <>
+                  <Card>
+                    <View style={{ gap: space.md }}>
+                      <View style={{ gap: 2 }}>
+                        <Text style={{ fontSize: 16, fontFamily: fonts.semibold, color: t.ink }}>{household.name}</Text>
+                        <Text
+                          style={{
+                            fontSize: 12.5,
+                            color: t.inkFaint,
+                            letterSpacing: 1.5,
+                            fontVariant: ['tabular-nums'] }}>
+                          {household.invite_code}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
+                        The code is the whole invitation, so send it only to people you want in your kitchen.
                       </Text>
+                      <Button label="Send an invite" variant="secondary" onPress={() => void shareInvite()} />
                     </View>
-                    <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
-                      The code is the whole invitation, so send it only to people you want in your kitchen.
-                    </Text>
-                    <Button label="Send an invite" variant="secondary" onPress={() => void shareInvite()} />
-                    <Button label="Leave this household" variant="danger" onPress={confirmLeave} />
-                  </View>
-                </Card>
+                  </Card>
+
+                  <Card>
+                    <View style={{ gap: space.md }}>
+                      <Eyebrow>Starting over</Eyebrow>
+                      <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
+                        A scan that went wrong should not have to be undone one product at a time.
+                      </Text>
+                      <Button label="Empty the pantry" variant="secondary" onPress={confirmClear} busy={busy} />
+                      <Button label="Leave this household" variant="danger" onPress={confirmLeave} />
+                    </View>
+                  </Card>
+                </>
               ) : null}
             </Group>
 

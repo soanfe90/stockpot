@@ -34,8 +34,8 @@ values (:'rcp', :'chicken', 'Pollo', 500, 'g', 'g', false, 0),
 insert into meal_plan (household_id, scope, starts_on, ends_on)
 values (:'hh', 'day', current_date, current_date) returning id as plan \gset
 insert into meal_slot (plan_id, household_id, recipe_id, scheduled_at, category, servings, position)
-values (:'plan', :'hh', :'rcp', now() + interval '2 hours', 'lunch',  2, 0),
-       (:'plan', :'hh', :'rcp', now() + interval '8 hours', 'dinner', 4, 1);
+values (:'plan', :'hh', :'rcp', current_date + interval '13 hours', 'lunch',  2, 0),
+       (:'plan', :'hh', :'rcp', current_date + interval '20 hours', 'dinner', 4, 1);
 select id as slot_a from meal_slot where servings = 2 \gset
 select id as slot_b from meal_slot where servings = 4 \gset
 
@@ -180,7 +180,7 @@ values (:'hh', 'single', current_date, current_date) returning id as plan2 \gset
 select add_stock(:'chicken', 1000, current_date + 10);
 \o
 insert into meal_slot (plan_id, household_id, recipe_id, scheduled_at, category, servings)
-values (:'plan2', :'hh', :'rcp', now() + interval '1 day', 'dinner', 2);
+values (:'plan2', :'hh', :'rcp', current_date + interval '1 day 20 hours', 'dinner', 2);
 do $$
 declare before_reserved numeric; after_reserved numeric;
 begin
@@ -223,7 +223,7 @@ set request.jwt.claim.sub = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 insert into meal_plan (household_id, scope, starts_on, ends_on)
 values (:'hh', 'single', current_date, current_date) returning id as plan3 \gset
 insert into meal_slot (plan_id, household_id, recipe_id, scheduled_at, category, servings)
-values (:'plan3', :'hh', :'rcp', now() + interval '2 days', 'lunch', 2);
+values (:'plan3', :'hh', :'rcp', current_date + interval '2 days 13 hours', 'lunch', 2);
 do $$
 declare claimed numeric;
 begin

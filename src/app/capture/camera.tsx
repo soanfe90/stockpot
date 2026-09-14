@@ -14,8 +14,9 @@ import { useHousehold } from '@/providers/household-provider';
 import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
-/** How far one press of the zoom buttons moves along the lens's range. */
-const ZOOM_STEP = 0.1;
+/** How far one press of the zoom buttons moves along the lens's range. Fine
+ *  enough to frame small print on a till roll without overshooting it. */
+const ZOOM_STEP = 0.05;
 
 export default function CameraScreen() {
   const t = useTokens();
@@ -107,6 +108,10 @@ export default function CameraScreen() {
 
   async function shoot() {
     const photo = await cameraRef.current?.takePictureAsync({ quality: 1, skipProcessing: true });
+    // The light has done its job. Leaving it on shines it at whoever is
+    // holding the phone for as long as the scan takes, and drains the battery
+    // while they read the results.
+    setTorch(false);
     if (photo?.uri) await handle(photo.uri);
   }
 

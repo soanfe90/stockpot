@@ -344,6 +344,27 @@ export async function cancelPlan(planId: string, householdId?: string): Promise<
   }
 }
 
+/**
+ * Empties the pantry. Live plans are cancelled first, inside the same
+ * transaction, because their reservations point at lots that are about to stop
+ * existing.
+ *
+ * `deleteProducts` is the difference between throwing out the food and
+ * forgetting that the household buys it -- and it takes the movement history
+ * with it, since that hangs off the product.
+ */
+export async function clearPantry(
+  householdId: string,
+  deleteProducts: boolean
+): Promise<{ plans_cancelled: number; lots_removed: number; products_removed: number }> {
+  const { data, error } = await supabase.rpc('clear_pantry', {
+    p_household_id: householdId,
+    p_delete_products: deleteProducts,
+  });
+  if (error) throw error;
+  return data as { plans_cancelled: number; lots_removed: number; products_removed: number };
+}
+
 /** Puts whatever the plan is short of onto the shopping list, pinned. */
 export async function addPlanGaps(planId: string): Promise<number> {
   const { data, error } = await supabase.rpc('add_plan_gaps_to_list', { p_plan_id: planId });

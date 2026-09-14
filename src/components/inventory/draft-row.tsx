@@ -6,7 +6,7 @@ import { Button, Eyebrow, Field, Segmented } from '@/components/ui/kit';
 import { CATEGORIES } from '@/lib/categories';
 import { confidenceLabel } from '@/lib/capture';
 import type { DraftLine, LineResolution, StockedProduct } from '@/lib/types';
-import { DISPLAY_UNITS, parseQty, type BaseUnit } from '@/lib/units';
+import { DISPLAY_UNITS, formatNumber, parseQty, type BaseUnit } from '@/lib/units';
 import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
@@ -58,6 +58,8 @@ export function DraftRow({
 }) {
   const t = useTokens();
   const [picking, setPicking] = useState(false);
+  // Null while not being edited, so the field shows the saved value.
+  const [qtyText, setQtyText] = useState<string | null>(null);
   const matched = products.find((p) => p.id === line.matched_product_id) ?? null;
   const skipped = line.resolution === 'skip';
 
@@ -102,7 +104,7 @@ export function DraftRow({
 
         <View style={{ alignItems: 'flex-end', gap: 5 }}>
           <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: t.ink, fontVariant: ['tabular-nums'] }}>
-            {line.qty} {line.display_unit}
+            {formatNumber(line.qty)} {line.display_unit}
           </Text>
           {!skipped ? <ConfidenceMeter confidence={line.confidence} /> : null}
         </View>
@@ -114,14 +116,23 @@ export function DraftRow({
 
           <View style={{ flexDirection: 'row', gap: space.md }}>
             <View style={{ flex: 1 }}>
+              {/* The draft string is what makes this editable at all. Bound
+                  straight to line.qty, the field could never be cleared:
+                  deleting the last digit leaves "", which does not parse, so
+                  nothing propagated and the old number was rendered straight
+                  back over the top. There was no way to reach an empty field
+                  and type a different one. */}
               <Field
                 label="Quantity"
-                value={String(line.qty)}
+                value={qtyText ?? formatNumber(line.qty)}
                 keyboardType="decimal-pad"
+                selectTextOnFocus
                 onChangeText={(text) => {
+                  setQtyText(text);
                   const qty = parseQty(text);
                   if (qty !== null) onChange({ qty });
                 }}
+                onBlur={() => setQtyText(null)}
               />
             </View>
           </View>

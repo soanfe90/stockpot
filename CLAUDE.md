@@ -42,6 +42,12 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   authority; the client copy exists only so a form can pre-fill a date without a
   round trip. A scanned line carries no shelf, so `natural_storage()` is what
   stops frozen food being dated as if it were in a cupboard.
+- **A numeric field keeps its own draft string.** Bind one straight to a parsed
+  value and it cannot be cleared: deleting the last digit leaves `""`, which does
+  not parse, so nothing propagates and the old number is rendered back over the
+  top. Hold the text in state while editing, write through on a valid parse, and
+  drop the draft on blur — `TimeField`, the draft row and the purchase review all
+  do this.
 - **A floating bottom bar measures itself.** Use `useFloatingBar()` with
   `<FloatingBar>` from the kit and give the scroll `bar.clearance`; never type a
   number into `paddingBottom` under a pinned bar. Every screen used to guess,

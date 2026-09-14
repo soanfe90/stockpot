@@ -65,6 +65,17 @@ export function formatQty(qty: number, base: BaseUnit, key: string): string {
   return `${value.toFixed(unit.precision)} ${unit.key}`;
 }
 
+/**
+ * A quantity as a person would type it: no trailing zeros, no exponent.
+ *
+ * PostgREST hands numeric columns back as strings ("500.000"), so putting one
+ * straight into a text field shows three decimals nobody asked for.
+ */
+export function formatNumber(value: number | string): string {
+  const n = Number(value);
+  return Number.isFinite(n) ? String(Math.round(n * 1000) / 1000) : '';
+}
+
 /** Accepts both "1.8" and the comma decimals printed on Spanish receipts. */
 export function parseQty(input: string): number | null {
   const cleaned = input.trim().replace(',', '.');

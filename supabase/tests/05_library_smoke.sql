@@ -28,8 +28,11 @@ values (:'rcp', :'pasta', 'Pasta', 200, 'g', 'g', 0);
 insert into meal_plan (household_id, scope, starts_on, ends_on, status)
 values (:'hh', 'day', current_date, current_date, 'active') returning id as plan \gset
 insert into meal_slot (plan_id, household_id, recipe_id, scheduled_at, category, servings, position)
-values (:'plan', :'hh', :'rcp', now() + interval '1 hour', 'lunch',  2, 0),
-       (:'plan', :'hh', :'rcp', now() + interval '5 hours','dinner', 2, 1);
+-- Anchored to midnight, not to the clock: "now() + 1 hour" is tomorrow when
+-- the suite runs late in the evening, and the template's day_offset assertion
+-- below then fails for an hour every night.
+values (:'plan', :'hh', :'rcp', current_date + interval '13 hours', 'lunch',  2, 0),
+       (:'plan', :'hh', :'rcp', current_date + interval '20 hours', 'dinner', 2, 1);
 \o /dev/null
 select finish_cooking(id, 2, 4) from meal_slot where category = 'lunch';
 select finish_cooking(id, 2, 5) from meal_slot where category = 'dinner';
@@ -56,7 +59,7 @@ end $$;
 do $$
 declare p meal_plan; slots int;
 begin
-  p := schedule_recipe((select id from recipe limit 1), now() + interval '2 days', 4);
+  p := schedule_recipe((select id from recipe limit 1), current_date + interval '2 days 13 hours', 4);
   if p.status <> 'draft' then raise exception 'FAIL: reuse should produce a draft, got %', p.status; end if;
   select count(*) into slots from meal_slot where plan_id = p.id;
   if slots <> 1 then raise exception 'FAIL: expected 1 slot, got %', slots; end if;
