@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Button, Card, Chips, ErrorNote, Field, Segmented, Title } from '@/components/ui/kit';
 import { Working } from '@/components/ui/working';
-import { generatePlan, nextFreeDay } from '@/lib/planning';
+import { generatePlan, nextFreeDay, today } from '@/lib/planning';
 import { formatDate } from '@/lib/expiry';
 import { errorMessage } from '@/lib/supabase';
 import {
@@ -34,6 +34,10 @@ export default function CreatePlanScreen() {
   const [goals, setGoals] = useState<string[]>(profile?.goals ?? []);
   const [servings, setServings] = useState(String(household?.size ?? 2));
   const [busy, setBusy] = useState(false);
+  // What the app worked out, and what the user actually wants. They differ
+  // whenever something is already scheduled, and the app should not be the one
+  // deciding which is right: somebody who just cleared their week means now.
+  const [nextFree, setNextFree] = useState<string | null>(null);
   const [startsOn, setStartsOn] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const navigation = useNavigation();
@@ -47,7 +51,14 @@ export default function CreatePlanScreen() {
 
   // Shown before generating, so it is never a surprise where the plan landed.
   useEffect(() => {
-    if (household) void nextFreeDay(household.id).then(setStartsOn);
+    if (!household) return;
+    void nextFreeDay(household.id).then((day) => {
+      setNextFree(day);
+      // Defaulting to the free day keeps a new plan from competing with one
+      // that already exists; the choice below is what makes it a default
+      // rather than a decision taken on the user's behalf.
+      setStartsOn(day);
+    });
   }, [household]);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,12 +69,10 @@ export default function CreatePlanScreen() {
     setBusy(true);
     setError(null);
     try {
-      // Not today by default: a plan laid over one that already exists does
-      // not merge with it, it competes with it for the same food.
       const result = await generatePlan(
         household.id,
         scope,
-        await nextFreeDay(household.id),
+        startsOn ?? (await nextFreeDay(household.id)),
         {
           diets,
           cuisines,
@@ -102,12 +111,25 @@ export default function CreatePlanScreen() {
             Every suggestion comes from what is actually in your pantry, working through whatever is closest to
             expiring first.
           </Body>
-          {startsOn ? (
-            <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
-              {startsOn === new Date().toISOString().slice(0, 10)
-                ? 'Starting today.'
-                : `Starting ${formatDate(startsOn)}, after the meals you already have scheduled.`}
-            </Text>
+          {startsOn && nextFree && nextFree !== today() ? (
+            <View style={{ gap: space.sm, paddingTop: space.xs }}>
+              <Segmented
+                label="Starting"
+                options={[
+                  { value: today(), label: 'Today' },
+                  { value: nextFree, label: formatDate(nextFree) },
+                ]}
+                value={startsOn}
+                onChange={setStartsOn}
+              />
+              <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
+                {startsOn === today()
+                  ? 'You already have meals scheduled in these days. Both plans will draw on the same pantry, so approve them one at a time.'
+                  : 'After the meals you already have scheduled, so the two plans do not compete for the same food.'}
+              </Text>
+            </View>
+          ) : startsOn ? (
+            <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>Starting today.</Text>
           ) : null}
         </View>
 

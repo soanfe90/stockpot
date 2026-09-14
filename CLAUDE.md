@@ -125,11 +125,12 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   plan that wants them, never on their own — `add_stock` clears the flag, and
   `prune_planned_products` clears out intentions no live plan, list or lot
   still wants.
-- **A plan's status and its slots' statuses are different things, and nothing
-  reads the first.** The Meals tab, `plan_shortfalls` and the reminder queue all
-  filter on `meal_slot.status`, so `cancel_plan` has to mark the slots too —
-  `planned` becomes `skipped`, while `cooking` and `done` are left alone. Leaving
-  them made deleting a plan look like it did nothing at all.
+- **A plan's status and its slots' statuses are different things.** `cancel_plan`
+  marks the slots too — `planned` becomes `skipped`, while `cooking` and `done`
+  are left alone — but every client query over `meal_slot` must *also* join the
+  plan and filter on its status. `loadSchedule` and `nextFreeDay` both do. Asking
+  only the slot made a deleted plan stay on the schedule, and then made it keep
+  pushing the next plan a week into the future.
 - **Only `finish_cooking` removes stock for a meal.** Approving reserves,
   skipping and cancelling release. Every one of those goes through the database
   under a row lock.

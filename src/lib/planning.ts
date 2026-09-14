@@ -145,15 +145,26 @@ export async function addIngredient(recipeId: string, productId: string, qty: nu
  * after the last meal already scheduled is what keeps them out of each other's
  * way.
  */
+export function today(): string {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return iso(now);
+}
+
 export async function nextFreeDay(householdId: string): Promise<string> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // The plan's status as well as the slot's. Cancelling a plan does not go
+  // back and rewrite its meals in every database -- and even where it does,
+  // asking only the slot is what let a deleted week keep pushing the next plan
+  // a week into the future.
   const { data } = await supabase
     .from('meal_slot')
-    .select('scheduled_at')
+    .select('scheduled_at, plan:plan_id!inner (status)')
     .eq('household_id', householdId)
     .in('status', ['planned', 'cooking'])
+    .in('plan.status', ['draft', 'active'])
     .order('scheduled_at', { ascending: false })
     .limit(1);
 
