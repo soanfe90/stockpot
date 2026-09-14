@@ -16,10 +16,10 @@ const pantry = [
   { product_id: 'rice', name: 'Arroz', available: 500 },
 ];
 
-/** A week's worth of room: two days off the shelf, two trips, ten new things. */
-const limits: PlanLimits = { pantryOnlyDays: 2, maxShoppingDays: 2, maxNewProducts: 10 };
-/** What a single-day plan gets: everything from the shelf, nothing bought. */
-const closed: PlanLimits = { pantryOnlyDays: 7, maxShoppingDays: 0, maxNewProducts: 0 };
+/** A household that shops on plan-days 2 and 5, with room for ten new things. */
+const limits: PlanLimits = { shoppingDays: [2, 5], maxNewProducts: 10 };
+/** One that never shops: the plan comes entirely from what is already in. */
+const closed: PlanLimits = { shoppingDays: [], maxNewProducts: 0 };
 
 function slot(name: string, dayOffset: number, ingredients: PlanSlot['ingredients']): PlanSlot {
   return { name, day_offset: dayOffset, ingredients };
@@ -92,7 +92,7 @@ test('only the whitelist may go untracked', () => {
 
 /* --------------------------------------------------------- reaching past it -- */
 
-test('later days may need shopping, and the purchase carries its deadline', () => {
+test('later days may need shopping, and each purchase names the trip that covers it', () => {
   const { accepted, purchases } = enforcePlan(
     [slot('A', 0, [from('rice', 200)]), slot('B', 3, [buy('Lentejas', 300)])],
     pantry,
@@ -102,24 +102,54 @@ test('later days may need shopping, and the purchase carries its deadline', () =
   assert.equal(purchases.length, 1);
   assert.equal(purchases[0].name, 'Lentejas');
   assert.equal(purchases[0].firstNeededDay, 3);
+  // Wanted on day 3, bought on the day-2 trip -- not the day-5 one.
+  assert.equal(purchases[0].shopOnDay, 2);
 });
 
-test('the first days come entirely from the pantry', () => {
+test('today comes entirely from the pantry, whatever the shopping days say', () => {
   // Nobody should have to shop before they can cook tonight.
   const { accepted, violations } = enforcePlan(
     [slot('A', 0, [buy('Lentejas', 300)]), slot('B', 4, [buy('Lentejas', 300)])],
     pantry,
-    limits
+    { shoppingDays: [0, 2], maxNewProducts: 10 }
   );
   assert.equal(accepted.length, 1);
   assert.equal(accepted[0].name, 'B');
-  assert.match(violations.join('\n'), /entirely from the pantry/);
+  assert.match(violations.join('\n'), /cook tonight/);
 });
 
-test('a single-day plan buys nothing at all', () => {
-  const { accepted, violations } = enforcePlan([slot('A', 0, [buy('Lentejas', 300)])], pantry, closed);
+test('a household that never shops is planned from stock alone', () => {
+  const { accepted, violations } = enforcePlan([slot('A', 3, [buy('Lentejas', 300)])], pantry, closed);
   assert.equal(accepted.length, 0);
-  assert.match(violations.join('\n'), /entirely from the pantry/);
+  assert.match(violations.join('\n'), /does not plan around shopping/);
+});
+
+test('nothing may be needed before the household can get to a shop', () => {
+  // They shop on day 5. A meal on day 3 cannot be built on something bought.
+  const { accepted, violations } = enforcePlan(
+    [slot('A', 3, [buy('Lentejas', 300)]), slot('B', 6, [buy('Lentejas', 300)])],
+    pantry,
+    { shoppingDays: [5], maxNewProducts: 10 }
+  );
+  assert.deepEqual(accepted.map((s) => s.name), ['B']);
+  assert.match(violations.join('\n'), /cannot get to a shop before then/);
+});
+
+test('one weekly shop and two shops a week do not give the same plan', () => {
+  const meals = [
+    slot('A', 0, [from('rice', 200)]),
+    slot('B', 2, [buy('Lentejas', 200)]),
+    slot('C', 6, [buy('Garbanzos', 200)]),
+  ];
+  const weekly = enforcePlan(meals, pantry, { shoppingDays: [5], maxNewProducts: 10 });
+  const twice = enforcePlan(meals, pantry, { shoppingDays: [1, 4], maxNewProducts: 10 });
+
+  // One shop on day 5 cannot supply a meal on day 2, so that meal goes and the
+  // week is built from the shelf around it. Two shops carry both.
+  assert.deepEqual(weekly.accepted.map((s) => s.name), ['A', 'C']);
+  assert.deepEqual(weekly.purchases.map((p) => p.shopOnDay), [5]);
+  assert.deepEqual(twice.accepted.map((s) => s.name), ['A', 'B', 'C']);
+  assert.deepEqual(twice.purchases.map((p) => p.shopOnDay), [1, 4]);
 });
 
 test('nothing is bought that the house already has enough of', () => {
@@ -141,7 +171,7 @@ test('a purchase used by several meals is one purchase, dated by the first', () 
 
 /* --------------------------------------------------- keeping out of the shop -- */
 
-test('a plan needing shopping on too many days is trimmed back', () => {
+test('too long a shopping list is trimmed back, from the end', () => {
   const { accepted, purchases, violations } = enforcePlan(
     [
       slot('A', 2, [buy('Lentejas', 100)]),
@@ -150,24 +180,11 @@ test('a plan needing shopping on too many days is trimmed back', () => {
       slot('D', 5, [buy('Quinoa', 100)]),
     ],
     pantry,
-    { pantryOnlyDays: 2, maxShoppingDays: 2, maxNewProducts: 10 }
-  );
-  assert.ok(new Set(purchases.map((p) => p.firstNeededDay)).size <= 2);
-  // Trimmed from the end: the early days are the ones actually cooked first.
-  assert.deepEqual(accepted.map((s) => s.name), ['A', 'B']);
-  assert.match(violations.join('\n'), /separate days/);
-});
-
-test('too long a shopping list is trimmed back too', () => {
-  const { purchases, violations } = enforcePlan(
-    [
-      slot('A', 3, [buy('Lentejas', 100), buy('Garbanzos', 100)]),
-      slot('B', 3, [buy('Alubias', 100)]),
-    ],
-    pantry,
-    { pantryOnlyDays: 2, maxShoppingDays: 2, maxNewProducts: 2 }
+    { shoppingDays: [2], maxNewProducts: 2 }
   );
   assert.ok(purchases.length <= 2);
+  // The early days are the ones actually cooked before anything changes.
+  assert.deepEqual(accepted.map((s) => s.name), ['A', 'B']);
   assert.match(violations.join('\n'), /different things/);
 });
 
@@ -182,7 +199,7 @@ test('reusing one bought item across the week costs nothing extra', () => {
       slot('E', 5, [buy('Lentejas', 100)]),
     ],
     pantry,
-    { pantryOnlyDays: 2, maxShoppingDays: 1, maxNewProducts: 1 }
+    { shoppingDays: [2], maxNewProducts: 1 }
   );
   assert.equal(accepted.length, 5);
   assert.equal(purchases.length, 1);

@@ -34,6 +34,20 @@ export const DEFAULT_MEAL_TIMES: MealTimes = {
   snack: 17 * 60,
 };
 
+/** ISO weekdays, Monday first, as the app writes and shows them. */
+export const WEEKDAYS: { value: number; label: string; short: string }[] = [
+  { value: 1, label: 'Monday', short: 'Mon' },
+  { value: 2, label: 'Tuesday', short: 'Tue' },
+  { value: 3, label: 'Wednesday', short: 'Wed' },
+  { value: 4, label: 'Thursday', short: 'Thu' },
+  { value: 5, label: 'Friday', short: 'Fri' },
+  { value: 6, label: 'Saturday', short: 'Sat' },
+  { value: 7, label: 'Sunday', short: 'Sun' },
+];
+
+/** Mirrors the user_profile.shopping_days column default. */
+export const DEFAULT_SHOPPING_DAYS = [6];
+
 export type UserProfile = {
   user_id: string;
   display_name: string | null;
@@ -42,6 +56,9 @@ export type UserProfile = {
   goals: string[];
   allergens: string[];
   meal_times: MealTimes;
+  /** ISO weekdays this member can get to a supermarket. Empty is a real
+   *  answer: plans are then built from stock alone. */
+  shopping_days: number[];
   /** Null until the preference questions have been answered. Empty arrays are
    *  a valid answer, so they cannot stand in for "not asked yet". */
   onboarded_at: string | null;

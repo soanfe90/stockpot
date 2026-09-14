@@ -12,6 +12,7 @@ type Preferences = {
   /** Omitted means "leave them as they are" -- save_preferences reads null the
    *  same way, so editing diets alone never resets someone's schedule. */
   mealTimes?: MealTimes;
+  shoppingDays?: number[];
 };
 
 type HouseholdContextValue = {
@@ -100,12 +101,13 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   );
 
   const savePreferences = useCallback(
-    async ({ diets, cuisines, goals, mealTimes }: Preferences) => {
+    async ({ diets, cuisines, goals, mealTimes, shoppingDays }: Preferences) => {
       const { error } = await supabase.rpc('save_preferences', {
         p_diet_types: diets,
         p_cuisines: cuisines,
         p_goals: goals,
         p_meal_times: mealTimes ?? null,
+        p_shopping_days: shoppingDays ?? null,
       });
       if (error) throw error;
       await refresh();

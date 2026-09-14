@@ -16,10 +16,18 @@ import {
   loadPlan,
   loadSchedule,
   mealLabel,
+  tripsFor,
 } from '@/lib/planning';
 import { formatDate } from '@/lib/expiry';
 import { errorMessage } from '@/lib/supabase';
-import { DEFAULT_MEAL_TIMES, type MealPlan, type PlanShortfall, type ScheduledMeal } from '@/lib/types';
+import {
+  DEFAULT_MEAL_TIMES,
+  DEFAULT_SHOPPING_DAYS,
+  WEEKDAYS,
+  type MealPlan,
+  type PlanShortfall,
+  type ScheduledMeal,
+} from '@/lib/types';
 import { formatQty } from '@/lib/units';
 import { useHousehold } from '@/providers/household-provider';
 import { fonts, radius, space } from '@/theme/tokens';
@@ -38,6 +46,10 @@ export default function ReviewPlanScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
+  // The days this plan was built around, editable here so a week can be
+  // reshaped before it is committed to rather than only in Preferences.
+  const [shopDays, setShopDays] = useState<number[] | null>(null);
+  const [editingDays, setEditingDays] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -47,12 +59,19 @@ export default function ReviewPlanScreen() {
       setPlan(data.plan);
       setMeals(data.meals);
       setShortfalls(data.shortfalls);
+      // What the plan was generated under, falling back to the member's own
+      // preference for plans made before shopping days existed.
+      setShopDays(
+        (data.plan.prefs?.shopping_days as number[] | undefined) ??
+          profile?.shopping_days ??
+          DEFAULT_SHOPPING_DAYS
+      );
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, profile?.shopping_days]);
 
   useEffect(() => {
     void load();
@@ -124,10 +143,11 @@ export default function ReviewPlanScreen() {
    * the new plan is built against the full pantry rather than against what
    * the plan it replaces had already spoken for.
    */
-  function startOver() {
+  function startOver(days?: number[]) {
     if (!id || !plan || !household) return;
+    const onDays = days ?? shopDays ?? DEFAULT_SHOPPING_DAYS;
     Alert.alert(
-      'Start this plan over?',
+      days ? 'Rebuild on these shopping days?' : 'Start this plan over?',
       approved
         ? 'These meals are dropped and their ingredients released, then a new plan is built over the same days.'
         : 'These meals are dropped and a new plan is built over the same days. Nothing has been taken from your pantry.',
@@ -151,7 +171,8 @@ export default function ReviewPlanScreen() {
                   cuisines: profile?.cuisines ?? [],
                   goals: profile?.goals ?? [],
                   servings: meals[0]?.servings ?? 2 },
-                profile?.meal_times ?? DEFAULT_MEAL_TIMES
+                profile?.meal_times ?? DEFAULT_MEAL_TIMES,
+                onDays
               );
               router.replace(`/plan/${result.plan_id}`);
             } catch (e) {
@@ -196,6 +217,7 @@ export default function ReviewPlanScreen() {
 
   const approved = plan.status !== 'draft';
   const byDay = groupByDay(meals);
+  const trips = tripsFor(plan, shortfalls, shopDays ?? []);
 
   return (
     <View style={{ flex: 1, backgroundColor: t.ground }}>
@@ -214,6 +236,98 @@ export default function ReviewPlanScreen() {
         </View>
 
         <ErrorNote message={error} />
+
+        {approved || !shopDays ? null : (
+          <Card>
+            <View style={{ gap: space.md }}>
+              <Eyebrow>Shopping this plan assumes</Eyebrow>
+              {trips.length ? (
+                trips.map((trip) => (
+                  <View key={trip.on} style={{ gap: 2 }}>
+                    <Text style={{ fontSize: 14.5, fontFamily: fonts.semibold, color: t.ink }}>
+                      {formatDate(trip.on)}
+                    </Text>
+                    <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
+                      {trip.items.join(', ')}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={{ fontSize: 13, color: t.inkMuted, lineHeight: 19 }}>
+                  No trip needed. This whole plan comes from what you already have.
+                </Text>
+              )}
+
+              <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
+                Built around the days you said you can shop. Change them and the meals change with them — fewer days
+                means leaning harder on the pantry.
+              </Text>
+
+              {editingDays ? (
+                <View style={{ gap: space.md }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+                    {WEEKDAYS.map((day) => {
+                      const on = shopDays.includes(day.value);
+                      return (
+                        <Pressable
+                          key={day.value}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: on }}
+                          accessibilityLabel={day.label}
+                          onPress={() =>
+                            setShopDays((prev) =>
+                              (prev ?? []).includes(day.value)
+                                ? (prev ?? []).filter((d) => d !== day.value)
+                                : [...(prev ?? []), day.value].sort((a, b) => a - b)
+                            )
+                          }
+                          style={{
+                            paddingHorizontal: space.md,
+                            paddingVertical: space.sm,
+                            borderRadius: radius.pill,
+                            backgroundColor: on ? t.accent : t.surfaceAlt,
+                            borderWidth: StyleSheet.hairlineWidth * 2,
+                            borderColor: on ? t.accent : t.line }}>
+                          <Text
+                            style={{ fontSize: 13, fontFamily: fonts.semibold, color: on ? t.onAccent : t.inkMuted }}>
+                            {day.short}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Button
+                    label="Rebuild the plan on these days"
+                    variant="secondary"
+                    busy={busy}
+                    onPress={() => {
+                      setEditingDays(false);
+                      startOver(shopDays);
+                    }}
+                  />
+                  <Button
+                    label="Leave it as it is"
+                    variant="ghost"
+                    onPress={() => {
+                      setEditingDays(false);
+                      void load();
+                    }}
+                  />
+                </View>
+              ) : (
+                <Button
+                  label={
+                    shopDays.length
+                      ? `Shopping on ${shopDays.map((d) => WEEKDAYS[d - 1].short).join(', ')} — change`
+                      : 'Not shopping at all — change'
+                  }
+                  variant="ghost"
+                  onPress={() => setEditingDays(true)}
+                />
+              )}
+            </View>
+          </Card>
+        )}
 
         {shortfalls.length ? (
           <Card>
@@ -309,12 +423,12 @@ export default function ReviewPlanScreen() {
         {approved ? (
           <>
             <Button label="Save to library as a reusable plan" variant="secondary" onPress={saveAsTemplate} />
-            <Button label="Start this plan over" variant="ghost" onPress={startOver} busy={busy} />
+            <Button label="Start this plan over" variant="ghost" onPress={() => startOver()} busy={busy} />
           </>
         ) : (
           <>
             <Button label="Approve and reserve ingredients" onPress={approve} busy={busy} />
-            <Button label="Start this plan over" variant="secondary" onPress={startOver} busy={busy} />
+            <Button label="Start this plan over" variant="secondary" onPress={() => startOver()} busy={busy} />
             <Button label="Save to library as a reusable plan" variant="ghost" onPress={saveAsTemplate} />
             <Button label="Discard" variant="ghost" onPress={discard} />
           </>

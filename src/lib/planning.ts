@@ -44,9 +44,9 @@ export type GenerateResult = {
    *  is the honest outcome, and the UI says so rather than hiding it. */
   trimmed: number;
   violations: string[];
-  /** What the plan will send the household to the shop for, and the day each
-   *  is first wanted. Empty when the pantry carried the whole plan. */
-  purchases: { name: string; first_needed_on: string }[];
+  /** The shopping this plan commits the household to: which days, and what
+   *  for. Empty when the pantry carried the whole plan. */
+  trips: { on: string; items: string[] }[];
 };
 
 export async function generatePlan(
@@ -55,6 +55,7 @@ export async function generatePlan(
   startsOn: string,
   prefs: PlanPrefs,
   mealTimes?: MealTimes,
+  shoppingDays?: number[],
   /** Abort the wait. The request is dropped; see cancelling in plan/create. */
   signal?: AbortSignal
 ): Promise<GenerateResult> {
@@ -66,6 +67,7 @@ export async function generatePlan(
       prefs,
       tz_offset_minutes: tzOffsetMinutes(),
       meal_times: mealTimes,
+      shopping_days: shoppingDays,
     },
     signal,
   });
@@ -151,6 +153,52 @@ export async function loadPlan(planId: string): Promise<{
     meals: (slotRes.data ?? []) as unknown as ScheduledMeal[],
     shortfalls: ((shortRes.data ?? []) as PlanShortfall[]).filter((s) => s.shortfall > 0),
   };
+}
+
+/**
+ * The trips a plan commits the household to, worked out from what it is short
+ * of and the days that plan was built around.
+ *
+ * Derived here rather than carried from the generator, because the review
+ * screen is reachable long after that response is gone -- and because a
+ * shortfall can change under an approved plan when stock moves, which would
+ * make a stored answer quietly wrong.
+ */
+export function tripsFor(
+  plan: MealPlan,
+  shortfalls: PlanShortfall[],
+  shoppingWeekdays: number[]
+): { on: string; items: string[] }[] {
+  if (!shoppingWeekdays.length) return [];
+
+  const start = new Date(`${plan.starts_on}T00:00:00`);
+  const end = new Date(`${plan.ends_on}T00:00:00`);
+  const span = Math.max(0, Math.round((end.getTime() - start.getTime()) / 86_400_000));
+
+  // Every day of the plan the household could shop on, as dates.
+  const shopDates: string[] = [];
+  for (let offset = 0; offset <= span; offset++) {
+    const day = new Date(start);
+    day.setDate(day.getDate() + offset);
+    const iso = day.getDay() === 0 ? 7 : day.getDay();
+    if (shoppingWeekdays.includes(iso)) shopDates.push(day.toISOString().slice(0, 10));
+  }
+
+  const byTrip = new Map<string, string[]>();
+  for (const gap of shortfalls) {
+    if (gap.shortfall <= 0) continue;
+    // The last chance to buy it before it is wanted. Nothing earlier than the
+    // deadline means it cannot be covered, and it is left out rather than
+    // pinned to a trip that happens too late to be any use.
+    const usable = shopDates.filter((d) => !gap.needed_by || d <= gap.needed_by);
+    const trip = usable[usable.length - 1];
+    if (!trip) continue;
+    byTrip.set(trip, [...(byTrip.get(trip) ?? []), gap.product_name]);
+  }
+
+  return [...byTrip.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([on, items]) => ({ on, items: items.sort() }));
 }
 
 export async function loadRecipe(recipeId: string): Promise<{

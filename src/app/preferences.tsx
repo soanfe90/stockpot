@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,10 +8,18 @@ import { Alert, Share } from 'react-native';
 
 import { Body, Button, Card, Chips, Eyebrow, ErrorNote, Segmented, TimeField, Title } from '@/components/ui/kit';
 import { errorMessage } from '@/lib/supabase';
-import { CUISINES, DEFAULT_MEAL_TIMES, DIET_TYPES, GOALS, type MealTimes } from '@/lib/types';
+import {
+  CUISINES,
+  DEFAULT_MEAL_TIMES,
+  DEFAULT_SHOPPING_DAYS,
+  DIET_TYPES,
+  GOALS,
+  WEEKDAYS,
+  type MealTimes,
+} from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
 import { useSession } from '@/providers/session-provider';
-import { fonts, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useThemeMode, useTokens } from '@/theme/use-tokens';
 import type { ThemeMode } from '@/theme/theme-provider';
 
@@ -33,6 +41,7 @@ export default function PreferencesScreen() {
   const [cuisines, setCuisines] = useState<string[]>(profile?.cuisines ?? []);
   const [goals, setGoals] = useState<string[]>(profile?.goals ?? []);
   const [mealTimes, setMealTimes] = useState<MealTimes>(profile?.meal_times ?? DEFAULT_MEAL_TIMES);
+  const [shoppingDays, setShoppingDays] = useState<number[]>(profile?.shopping_days ?? DEFAULT_SHOPPING_DAYS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +94,7 @@ export default function PreferencesScreen() {
     setBusy(true);
     setError(null);
     try {
-      await savePreferences({ diets, cuisines, goals, mealTimes });
+      await savePreferences({ diets, cuisines, goals, mealTimes, shoppingDays });
       if (first) router.replace('/');
       else router.back();
     } catch (e) {
@@ -159,6 +168,49 @@ export default function PreferencesScreen() {
             onChange={(m) => setMealTimes((prev) => ({ ...prev, snack: m }))}
             hint="Only used when a plan suggests one."
           />
+        </View>
+      </Card>
+
+      <Card>
+        <View style={{ gap: space.md }}>
+          <View style={{ gap: space.xs }}>
+            <Eyebrow>When you can shop</Eyebrow>
+            <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
+              This changes the meals you are offered, not just the list. Someone who shops once a week gets a plan
+              that leans harder on the pantry and asks for fewer things; someone who shops twice gets more variety.
+              Choose none and every plan comes from stock alone.
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+            {WEEKDAYS.map((day) => {
+              const on = shoppingDays.includes(day.value);
+              return (
+                <Pressable
+                  key={day.value}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  accessibilityLabel={day.label}
+                  onPress={() =>
+                    setShoppingDays((prev) =>
+                      prev.includes(day.value)
+                        ? prev.filter((d) => d !== day.value)
+                        : [...prev, day.value].sort((a, b) => a - b)
+                    )
+                  }
+                  style={{
+                    paddingHorizontal: space.md,
+                    paddingVertical: space.sm,
+                    borderRadius: radius.pill,
+                    backgroundColor: on ? t.accent : t.surfaceAlt,
+                    borderWidth: StyleSheet.hairlineWidth * 2,
+                    borderColor: on ? t.accent : t.line }}>
+                  <Text style={{ fontSize: 13, fontFamily: fonts.semibold, color: on ? t.onAccent : t.inkMuted }}>
+                    {day.short}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       </Card>
 

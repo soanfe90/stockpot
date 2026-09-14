@@ -77,11 +77,19 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   reaching the shopping list. An invisible hole in a plan that looked complete.
 - **A plan may reach past the shelf, under bounds.** Every ingredient states its
   `source`: `pantry` (product_id required), `staple` (whitelist only), or `buy`.
-  `PlanLimits` keeps `buy` honest — the opening days must be pantry-only so
-  someone can cook tonight without shopping, nothing already in the house may be
-  bought, and new things must be introduced on few days because each of those
-  days is a trip. A day or single plan gets no allowance at all; only a week
-  does, and `adapt-recipe` is closed entirely.
+  `PlanLimits` keeps `buy` honest — day 0 is always pantry-only so someone can
+  cook tonight without shopping, nothing already in the house may be bought, and
+  nothing may be needed before the household can actually get to a shop. A day
+  or single plan gets no allowance at all; only a week does, and `adapt-recipe`
+  is closed entirely.
+- **Shopping days are days, not a count.** `user_profile.shopping_days` holds ISO
+  weekdays; `limitsFor` turns them into plan-day offsets, and `tripFor` decides
+  which trip covers each purchase. Someone who shops Saturdays and someone who
+  shops Tuesdays and Fridays must not get the same week — the difference is
+  *which* days, and a meal cannot be built on something that cannot be bought in
+  time for it. The shopping list length scales with the number of trips, because
+  one weekly shop carrying seven days is not the moment to buy eight new things.
+  An empty array is a real answer meaning "plan from stock alone".
 - **A `buy` ingredient becomes a real product with no stock**, marked
   `product.planned`. That is what lets `plan_shortfalls`, `add_plan_gaps_to_list`,
   `close_purchase` and `finish_cooking` carry it with no new mechanism.

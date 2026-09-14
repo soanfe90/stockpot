@@ -139,7 +139,7 @@ Deno.serve(async (req: Request) => {
         },
       ],
       pantry,
-      { pantryOnlyDays: 1, maxShoppingDays: 0, maxNewProducts: 0 }
+      { shoppingDays: [], maxNewProducts: 0 }
     );
     if (accepted.length === 0) {
       return fail(

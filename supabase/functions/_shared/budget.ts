@@ -51,15 +51,36 @@ export type PlanSlot = {
 export type PantryItem = { product_id: string; name: string; available: number };
 
 export type PlanLimits = {
-  /** Days from the start that must come entirely from the pantry, so the
-   *  household can cook tonight without going anywhere. */
-  pantryOnlyDays: number;
-  /** Distinct days on which something new is first needed. Each one is a trip
-   *  to the shop, which is the cost this whole feature has to stay inside. */
-  maxShoppingDays: number;
-  /** Distinct products the plan may ask the household to buy. */
+  /**
+   * Plan-day offsets on which the household can actually get to a shop, from
+   * the weekdays they told us. Empty means never, and the plan then comes
+   * entirely from what is already in.
+   *
+   * This replaced a bare count of trips, which was an abstraction standing in
+   * for a real fact: somebody who shops on Saturdays and somebody who shops
+   * Tuesdays and Fridays should not get the same week of meals, and the
+   * difference is *which days*, not how many.
+   */
+  shoppingDays: number[];
+  /** Distinct products the plan may ask the household to buy. Fewer trips
+   *  means fewer of these -- one weekly shop that has to carry seven days is
+   *  not the moment to buy eight new things. */
   maxNewProducts: number;
 };
+
+/**
+ * Day 0 is always the household's own shelf, whatever their shopping days say.
+ * Being told to go to a supermarket before you can make tonight's dinner is
+ * the one outcome this feature must never produce.
+ */
+const PANTRY_ONLY_DAYS = 1;
+
+/** The trip that covers something first wanted on `day`: the last shopping day
+ *  at or before it. Null when nothing precedes it and it cannot be bought. */
+export function tripFor(shoppingDays: number[], day: number): number | null {
+  const usable = shoppingDays.filter((d) => d <= day).sort((a, b) => b - a);
+  return usable[0] ?? null;
+}
 
 /** One thing the plan wants that the house does not have. */
 export type Purchase = {
@@ -70,6 +91,9 @@ export type Purchase = {
   qty: number;
   /** The plan day it is first needed on -- the deadline for buying it. */
   firstNeededDay: number;
+  /** The shopping day that has to cover it. Null only in a verdict that was
+   *  rejected for exactly that reason. */
+  shopOnDay: number | null;
 };
 
 export type PlanVerdict<S extends PlanSlot> = {
@@ -97,23 +121,21 @@ export function enforcePlan<S extends PlanSlot>(
 
   let accepted = allocate(byDay, pantry, limits, violations);
 
-  // Plan-level limits can only be judged once it is known which slots survived,
-  // and dropping one can free a whole shopping day. Trimming repeats until the
-  // plan is inside its limits -- normally never, because the retry loop feeds
-  // these same violations back to the model first. This is the guarantee that
-  // holds when the retries are spent.
+  // How long the list may be can only be judged once it is known which slots
+  // survived. Trimming repeats until the plan is inside it -- normally never,
+  // because the retry loop feeds this same violation back to the model first.
+  // This is the guarantee that holds when the retries are spent.
   for (let guard = 0; guard < byDay.length; guard++) {
-    const purchases = collect(accepted);
-    const days = new Set(purchases.map((p) => p.firstNeededDay));
-    if (purchases.length <= limits.maxNewProducts && days.size <= limits.maxShoppingDays) break;
+    const purchases = collect(accepted, limits);
+    if (purchases.length <= limits.maxNewProducts) break;
 
-    const victim = costliest(accepted, purchases, limits);
+    const victim = costliest(accepted);
     if (!victim) break;
 
     violations.push(
-      purchases.length > limits.maxNewProducts
-        ? `The plan asks the household to buy ${purchases.length} different things; ${limits.maxNewProducts} is the most it may. Build more meals around what is already in.`
-        : `The plan needs shopping on ${days.size} separate days; ${limits.maxShoppingDays} is the most it may. Introduce new ingredients together, and reuse them across meals.`
+      `The plan asks the household to buy ${purchases.length} different things; ` +
+        `${limits.maxNewProducts} is the most it may on ${limits.shoppingDays.length} ` +
+        `shopping ${limits.shoppingDays.length === 1 ? 'day' : 'days'}. Build more meals around what is already in.`
     );
 
     accepted = allocate(
@@ -124,7 +146,7 @@ export function enforcePlan<S extends PlanSlot>(
     );
   }
 
-  return { accepted, violations, purchases: collect(accepted) };
+  return { accepted, violations, purchases: collect(accepted, limits) };
 }
 
 /** One pass: per-slot rules, then the running pantry budget, in day order. */
@@ -173,10 +195,24 @@ function allocate<S extends PlanSlot>(
       }
 
       if (ing.source === 'buy') {
-        if (slot.day_offset < limits.pantryOnlyDays) {
+        if (slot.day_offset < PANTRY_ONLY_DAYS) {
           violations.push(
-            `"${slot.name}" is on day ${slot.day_offset} and needs ${ing.name} bought. The first ` +
-              `${limits.pantryOnlyDays} day${limits.pantryOnlyDays === 1 ? '' : 's'} must come entirely from the pantry.`
+            `"${slot.name}" is on day ${slot.day_offset} and needs ${ing.name} bought. Today has to ` +
+              `come entirely from the pantry -- nobody should have to shop before they can cook tonight.`
+          );
+          ok = false;
+          continue;
+        }
+        // The deadline is not a date, it is a trip. Something first wanted on
+        // Wednesday by a household that shops on Saturdays cannot be bought in
+        // time, however early the plan says it is needed.
+        if (tripFor(limits.shoppingDays, slot.day_offset) === null) {
+          violations.push(
+            limits.shoppingDays.length
+              ? `"${slot.name}" is on day ${slot.day_offset} and needs ${ing.name} bought, but the household ` +
+                `cannot get to a shop before then. Their shopping days are ${limits.shoppingDays.join(', ')}.`
+              : `"${slot.name}" needs ${ing.name} bought, but this household does not plan around shopping at all. ` +
+                `Use what is in the pantry.`
           );
           ok = false;
           continue;
@@ -228,8 +264,9 @@ function allocate<S extends PlanSlot>(
   return accepted;
 }
 
-/** Everything the accepted meals need that the house does not have. */
-function collect<S extends PlanSlot>(accepted: S[]): Purchase[] {
+/** Everything the accepted meals need that the house does not have, each
+ *  attached to the trip that has to cover it. */
+function collect<S extends PlanSlot>(accepted: S[], limits: PlanLimits): Purchase[] {
   const found = new Map<string, Purchase>();
 
   for (const slot of accepted) {
@@ -241,26 +278,33 @@ function collect<S extends PlanSlot>(accepted: S[]): Purchase[] {
         seen.qty += ing.qty;
         seen.firstNeededDay = Math.min(seen.firstNeededDay, slot.day_offset);
       } else {
-        found.set(k, { key: k, name: ing.name.trim(), qty: ing.qty, firstNeededDay: slot.day_offset });
+        found.set(k, {
+          key: k,
+          name: ing.name.trim(),
+          qty: ing.qty,
+          firstNeededDay: slot.day_offset,
+          shopOnDay: null,
+        });
       }
     }
   }
 
-  return [...found.values()].sort((a, b) => a.firstNeededDay - b.firstNeededDay || a.key.localeCompare(b.key));
+  const purchases = [...found.values()];
+  for (const item of purchases) item.shopOnDay = tripFor(limits.shoppingDays, item.firstNeededDay);
+
+  return purchases.sort((a, b) => a.firstNeededDay - b.firstNeededDay || a.key.localeCompare(b.key));
 }
 
 /**
- * The slot whose removal buys the most, when a plan is over its limits.
+ * The slot whose removal buys the most, when a plan's shopping list is too
+ * long.
  *
  * Latest first, because the early days are the ones the household will
  * actually cook before anything changes; and among those, one that is the sole
- * reason for a purchase, because dropping it retires a whole product -- and
- * possibly a whole trip to the shop -- rather than trimming a quantity.
+ * reason for a purchase, because dropping it retires a whole product rather
+ * than trimming a quantity.
  */
-function costliest<S extends PlanSlot>(accepted: S[], purchases: Purchase[], limits: PlanLimits): S | null {
-  const tooManyDays = new Set(purchases.map((p) => p.firstNeededDay)).size > limits.maxShoppingDays;
-  const latestDay = tooManyDays ? Math.max(...purchases.map((p) => p.firstNeededDay)) : null;
-
+function costliest<S extends PlanSlot>(accepted: S[]): S | null {
   const users = new Map<string, number>();
   for (const slot of accepted) {
     for (const k of new Set(slot.ingredients.filter((i) => i.source === 'buy').map((i) => key(i.name)))) {
@@ -270,7 +314,6 @@ function costliest<S extends PlanSlot>(accepted: S[], purchases: Purchase[], lim
 
   const candidates = accepted
     .filter((s) => s.ingredients.some((i) => i.source === 'buy'))
-    .filter((s) => latestDay === null || s.day_offset === latestDay)
     .sort((a, b) => b.day_offset - a.day_offset);
 
   const sole = candidates.find((s) =>

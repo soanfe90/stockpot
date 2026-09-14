@@ -8,7 +8,14 @@ import { Body, Button, Card, Chips, ErrorNote, Field, Segmented, Title } from '@
 import { Working } from '@/components/ui/working';
 import { generatePlan } from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
-import { CUISINES, DEFAULT_MEAL_TIMES, DIET_TYPES, GOALS, type PlanScope } from '@/lib/types';
+import {
+  CUISINES,
+  DEFAULT_MEAL_TIMES,
+  DEFAULT_SHOPPING_DAYS,
+  DIET_TYPES,
+  GOALS,
+  type PlanScope,
+} from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
 import { space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
@@ -56,6 +63,9 @@ export default function CreatePlanScreen() {
         // Sent with the request rather than read server-side, so a plan lands
         // at the times this member actually eats at, on this device's clock.
         profile?.meal_times ?? DEFAULT_MEAL_TIMES,
+        // A week plan is built around the days this member can actually shop;
+        // the review screen can rebuild it on different ones before approving.
+        profile?.shopping_days ?? DEFAULT_SHOPPING_DAYS,
         controller.signal
       );
       router.replace(`/plan/${result.plan_id}`);

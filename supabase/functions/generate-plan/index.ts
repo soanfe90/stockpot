@@ -44,17 +44,41 @@ const DEFAULT_MEAL_MINUTES: Record<(typeof CATEGORIES)[number], number> = {
 
 type MealMinutes = Partial<Record<(typeof CATEGORIES)[number], number>>;
 
+/** ISO weekday of a plan day: 1 is Monday, 7 is Sunday. */
+function isoWeekday(startsOn: string, dayOffset: number): number {
+  const d = new Date(`${addDays(startsOn, dayOffset)}T00:00:00Z`);
+  return d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+}
+
 /**
- * How far a plan of each length may reach past the shelf.
+ * How far a plan may reach past the shelf, given when the household can
+ * actually get to a shop.
  *
- * A single meal or a single day is today: sending someone to the shop before
- * they can cook tonight is worse than a dull dinner, so those stay closed. A
- * week is where the pantry runs thin and repeats itself, and where two trips
- * buys a great deal of variety.
+ * The weekdays they told us become plan-day offsets, which is the only form
+ * the enforcer can use: "Saturday" means nothing to a check that works in days
+ * from the start of the plan.
+ *
+ * The length of the shopping list scales with the number of trips rather than
+ * being fixed. One weekly shop that has to carry seven days is not the moment
+ * to buy eight new things: it is the moment to lean on the pantry and add two
+ * or three that stretch a long way.
  */
-function limitsFor(scope: 'single' | 'day' | 'week', days: number): PlanLimits {
-  if (scope === 'week') return { pantryOnlyDays: 2, maxShoppingDays: 2, maxNewProducts: 10 };
-  return { pantryOnlyDays: days, maxShoppingDays: 0, maxNewProducts: 0 };
+function limitsFor(
+  scope: 'single' | 'day' | 'week',
+  startsOn: string,
+  days: number,
+  shoppingWeekdays: number[]
+): PlanLimits {
+  // A single meal or a single day is today, and today is always the
+  // household's own shelf -- there is no room in it for a trip to a shop.
+  if (scope !== 'week') return { shoppingDays: [], maxNewProducts: 0 };
+
+  const shoppingDays: number[] = [];
+  for (let offset = 0; offset < days; offset++) {
+    if (shoppingWeekdays.includes(isoWeekday(startsOn, offset))) shoppingDays.push(offset);
+  }
+
+  return { shoppingDays, maxNewProducts: Math.min(12, shoppingDays.length * 5) };
 }
 
 /** The meal a regeneration stands in for: its plan, its place and its time. */
@@ -184,6 +208,9 @@ Deno.serve(async (req: Request) => {
     prefs?: Record<string, unknown>;
     tz_offset_minutes?: number;
     meal_times?: MealMinutes;
+    /** ISO weekdays the household can get to a shop. Empty is a real answer:
+     *  plan from the pantry alone. */
+    shopping_days?: number[];
     /** Set to swap one meal of an existing draft for a fresh suggestion,
      *  keeping its plan, its slot in the day, and its time. */
     replace_slot_id?: string;
@@ -312,8 +339,10 @@ Deno.serve(async (req: Request) => {
     // A swap lives inside a plan that already made its shopping decisions, so
     // it gets no fresh allowance: it has to work with what is there.
     const limits = replacing
-      ? { pantryOnlyDays: 1, maxShoppingDays: 0, maxNewProducts: 0 }
-      : limitsFor(body.scope, days);
+      ? // A swap lives inside a plan that already made its shopping decisions,
+        // so it gets no fresh allowance: it works with what is there.
+        { shoppingDays: [], maxNewProducts: 0 }
+      : limitsFor(body.scope, body.starts_on, days, body.shopping_days ?? []);
 
     // Things the household is already going to buy. Leaning on these costs no
     // extra trip, which makes them the cheapest variety available.
@@ -357,9 +386,15 @@ Deno.serve(async (req: Request) => {
               ``,
               `Categories for anything you ask them to buy: ${CATEGORIES_FOR_BUYING.join(', ')}.`,
               ``,
-              `Rules for this plan: the first ${limits.pantryOnlyDays} day(s) must come entirely from`,
-              `the pantry; at most ${limits.maxNewProducts} different things may be bought across the`,
-              `whole plan, first needed on at most ${limits.maxShoppingDays} distinct day(s).`,
+              limits.shoppingDays.length
+                ? [
+                    `This household can get to a shop on day_offset ${limits.shoppingDays.join(' and ')} of this plan,`,
+                    `and nowhere else. Anything bought must therefore be first needed on or after one of those days --`,
+                    `a meal on day 3 cannot use something they cannot buy until day 5.`,
+                    `Day 0 is always from the pantry: they must be able to cook tonight without going anywhere.`,
+                    `At most ${limits.maxNewProducts} different things may be bought across the whole plan.`,
+                  ].join('\n')
+                : `This household is not planning around a shop at all. Every ingredient must come from the pantry or be a staple.`,
               ``,
               `Preferences: ${JSON.stringify(body.prefs ?? {})}`,
               ``,
@@ -417,7 +452,10 @@ Deno.serve(async (req: Request) => {
           starts_on: body.starts_on,
           ends_on: endsOn,
           status: 'draft',
-          prefs: body.prefs ?? {},
+          // The shopping days go in with the preferences because the review
+          // screen has to show which trips this plan assumes, and offer to
+          // rebuild it on different ones.
+          prefs: { ...(body.prefs ?? {}), shopping_days: body.shopping_days ?? [] },
         })
         .select()
         .single();
@@ -559,12 +597,10 @@ Deno.serve(async (req: Request) => {
       // Nonzero only when a swap inside an approved plan could not fully claim
       // what the replacement needs. Said plainly rather than hidden.
       shortfall_units: shortfall,
-      // What the plan will send them to the shop for, and when each is first
-      // wanted. The review screen shows this before anything is approved.
-      purchases: purchases.map((item) => ({
-        name: item.name,
-        first_needed_on: addDays(body.starts_on, item.firstNeededDay),
-      })),
+      // The shopping this plan commits them to: which days, and what for. The
+      // review screen shows it before anything is approved, because a plan is
+      // a claim on someone's week and not only on their pantry.
+      trips: tripsOf(purchases, body.starts_on),
     });
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e), 502);
@@ -624,4 +660,17 @@ function specFor(slots: Slot[], k: string): { category: string; base_unit: strin
     }
   }
   return { category: 'Other', base_unit: 'g', display_unit: 'g' };
+}
+
+/** The purchases grouped into the trips that cover them, soonest first. */
+function tripsOf(purchases: Purchase[], startsOn: string): { on: string; items: string[] }[] {
+  const byDay = new Map<number, string[]>();
+  for (const item of purchases) {
+    if (item.shopOnDay === null) continue;
+    byDay.set(item.shopOnDay, [...(byDay.get(item.shopOnDay) ?? []), item.name]);
+  }
+
+  return [...byDay.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([day, items]) => ({ on: addDays(startsOn, day), items: items.sort() }));
 }
