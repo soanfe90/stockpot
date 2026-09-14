@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, EmptyState, ErrorNote, Loading } from '@/components/ui/kit';
 import { useShoppingList } from '@/hooks/use-shopping-list';
-import { formatDate } from '@/lib/expiry';
+import { daysUntil, formatDate } from '@/lib/expiry';
 import { SOURCE_LABELS, type ItemSource, type ShoppingItem } from '@/lib/types';
 import { formatQty, parseQty } from '@/lib/units';
 import { useHousehold } from '@/providers/household-provider';
@@ -148,6 +148,23 @@ export default function ShoppingScreen() {
   );
 }
 
+/** Coloured by how close it is: a date the eye slides over is not a deadline,
+ *  and this one decides whether a trip to the shop happens at all. */
+function Deadline({ on }: { on: string }) {
+  const t = useTokens();
+  const days = daysUntil(on);
+  const pressing = days !== null && days <= 2;
+  return (
+    <Text
+      style={{
+        fontSize: 11.5,
+        color: pressing ? t.urgent : t.inkFaint,
+        fontFamily: pressing ? fonts.semibold : undefined }}>
+      · by {formatDate(on)}
+    </Text>
+  );
+}
+
 function ItemRow({
   item,
   onToggle,
@@ -201,9 +218,7 @@ function ItemRow({
           <Text style={{ fontSize: 10.5, fontFamily: fonts.bold, letterSpacing: 0.4, textTransform: 'uppercase', color: reason }}>
             {SOURCE_LABELS[item.source]}
           </Text>
-          {item.needed_by ? (
-            <Text style={{ fontSize: 11.5, color: t.inkFaint }}>· by {formatDate(item.needed_by)}</Text>
-          ) : null}
+          {item.needed_by ? <Deadline on={item.needed_by} /> : null}
         </View>
       </View>
 

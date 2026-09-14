@@ -17,6 +17,7 @@ import {
   loadSchedule,
   mealLabel,
 } from '@/lib/planning';
+import { formatDate } from '@/lib/expiry';
 import { errorMessage } from '@/lib/supabase';
 import { DEFAULT_MEAL_TIMES, type MealPlan, type PlanShortfall, type ScheduledMeal } from '@/lib/types';
 import { formatQty } from '@/lib/units';
@@ -140,7 +141,7 @@ export default function ReviewPlanScreen() {
             setRebuilding(true);
             setError(null);
             try {
-              await cancelPlan(id);
+              await cancelPlan(id, household.id);
               const result = await generatePlan(
                 household.id,
                 plan.scope,
@@ -175,7 +176,7 @@ export default function ReviewPlanScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await cancelPlan(id);
+            await cancelPlan(id, household?.id);
             router.replace('/plan');
           } catch (e) {
             setError(errorMessage(e));
@@ -205,7 +206,9 @@ export default function ReviewPlanScreen() {
             {meals.length} meal{meals.length === 1 ? '' : 's'}
           </Text>
           <Text style={{ fontSize: 13, color: t.inkMuted, lineHeight: 19 }}>
-            Every ingredient below is already in your pantry. Nothing is reserved until you approve.
+            {shortfalls.length
+              ? 'The first days come from what you already have; later ones need a few things from the shop. Nothing is reserved until you approve.'
+              : 'Every ingredient below is already in your pantry — this plan needs no shopping at all. Nothing is reserved until you approve.'}
             {approved ? '' : ' Tap any meal to change its time, its ingredients, or swap it for another.'}
           </Text>
         </View>
@@ -215,17 +218,29 @@ export default function ReviewPlanScreen() {
         {shortfalls.length ? (
           <Card>
             <View style={{ gap: space.md }}>
-              <Eyebrow color={t.soon}>Short by</Eyebrow>
+              <Eyebrow color={t.soon}>To buy before you cook it all</Eyebrow>
+              <Text style={{ fontSize: 12.5, color: t.inkMuted, lineHeight: 18 }}>
+                The early meals come from what you already have. These are for later in the plan, so there is time to
+                pick them up — each one shows the day it is first wanted.
+              </Text>
               {shortfalls.map((s) => (
-                <View key={s.product_id} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 14, color: t.ink }}>{s.product_name}</Text>
+                <View key={s.product_id} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.md }}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={{ fontSize: 14, color: t.ink }}>{s.product_name}</Text>
+                    {s.needed_by ? (
+                      <Text style={{ fontSize: 11.5, color: t.inkFaint }}>
+                        first wanted {formatDate(s.needed_by)}
+                      </Text>
+                    ) : null}
+                  </View>
                   <Text style={{ fontSize: 14, color: t.soon, fontVariant: ['tabular-nums'] }}>
                     {formatQty(s.shortfall, s.base_unit, s.display_unit)}
                   </Text>
                 </View>
               ))}
               <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
-                Approving adds these to your shopping list, marked as needed for a meal.
+                Approving adds these to your shopping list under their deadline, marked as needed for a meal so a
+                refresh cannot relabel them.
               </Text>
             </View>
           </Card>

@@ -44,6 +44,9 @@ export type GenerateResult = {
    *  is the honest outcome, and the UI says so rather than hiding it. */
   trimmed: number;
   violations: string[];
+  /** What the plan will send the household to the shop for, and the day each
+   *  is first wanted. Empty when the pantry carried the whole plan. */
+  purchases: { name: string; first_needed_on: string }[];
 };
 
 export async function generatePlan(
@@ -234,9 +237,21 @@ export async function approvePlan(planId: string): Promise<{ shortfall_units: nu
   return data as { shortfall_units: number };
 }
 
-export async function cancelPlan(planId: string): Promise<void> {
+export async function cancelPlan(planId: string, householdId?: string): Promise<void> {
   const { error } = await supabase.rpc('cancel_plan', { p_plan_id: planId });
   if (error) throw error;
+
+  // Discarding a plan can orphan the products it invented for meals nobody
+  // will now cook. Tidying them is a convenience, not part of cancelling, so a
+  // failure here must not report a cancelled plan as still standing.
+  if (householdId) {
+    // The builder is thenable, not a Promise, so it has no .catch of its own.
+    try {
+      await supabase.rpc('prune_planned_products', { p_household_id: householdId });
+    } catch {
+      // Nothing to do: the plan is cancelled either way.
+    }
+  }
 }
 
 /** Puts whatever the plan is short of onto the shopping list, pinned. */

@@ -114,22 +114,33 @@ export function useShoppingList(householdId: string | null) {
     [list, refresh]
   );
 
-  /** Aisle order: grouped by category, unticked first inside each group. */
+  /**
+   * Urgency first, aisle second.
+   *
+   * The list used to be grouped by aisle alone, which is the right order once
+   * you are standing in the shop and the wrong one everywhere else: a meal
+   * plan now puts things on here with a day attached, and "you need this by
+   * Thursday" is the part that decides whether a trip happens at all. So the
+   * deadlines lead and the open-ended restocking sinks to the bottom, where it
+   * can be picked up on a trip that was happening anyway.
+   */
   const sections = useMemo(() => {
-    const groups = new Map<string, ShoppingItem[]>();
+    const groups = new Map<UrgencyKey, ShoppingItem[]>();
     for (const item of items) {
-      const list = groups.get(item.category) ?? [];
-      list.push(item);
-      groups.set(item.category, list);
+      const bucket = urgencyOf(item);
+      groups.set(bucket, [...(groups.get(bucket) ?? []), item]);
     }
-    return [...groups.entries()]
-      .sort(([a], [b]) => categoryRank(a) - categoryRank(b) || a.localeCompare(b))
-      .map(([title, data]) => ({
-        title,
-        data: data.sort(
-          (a, b) => Number(a.checked) - Number(b.checked) || a.name.localeCompare(b.name)
-        ),
-      }));
+
+    return URGENCY_ORDER.filter((bucket) => groups.get(bucket.key)?.length).map((bucket) => ({
+      title: bucket.title,
+      data: (groups.get(bucket.key) ?? []).sort(
+        (a, b) =>
+          Number(a.checked) - Number(b.checked) ||
+          (a.needed_by ?? '9999').localeCompare(b.needed_by ?? '9999') ||
+          categoryRank(a.category) - categoryRank(b.category) ||
+          a.name.localeCompare(b.name)
+      ),
+    }));
   }, [items]);
 
   const checked = items.filter((i) => i.checked);
@@ -153,4 +164,29 @@ export function useShoppingList(householdId: string | null) {
 async function reload(listId: string, set: (items: ShoppingItem[]) => void) {
   const { data } = await supabase.from('shopping_item').select('*').eq('list_id', listId).order('position');
   set((data ?? []) as ShoppingItem[]);
+}
+
+/* ------------------------------------------------------------- urgency -- */
+
+type UrgencyKey = 'now' | 'week' | 'later';
+
+const URGENCY_ORDER: { key: UrgencyKey; title: string }[] = [
+  { key: 'now', title: 'Needed in the next two days' },
+  { key: 'week', title: 'Needed this week' },
+  { key: 'later', title: 'No rush — whenever you are next in' },
+];
+
+/**
+ * A row with no date is not urgent by omission: it is there because stock ran
+ * low, which is a standing condition rather than a deadline. Only a meal plan
+ * puts a day on a row, and that day is the whole reason to go.
+ */
+function urgencyOf(item: ShoppingItem): UrgencyKey {
+  if (!item.needed_by) return 'later';
+  const days = Math.round(
+    (new Date(`${item.needed_by}T00:00:00`).getTime() - new Date(new Date().toDateString()).getTime()) / 86_400_000
+  );
+  if (days <= 2) return 'now';
+  if (days <= 7) return 'week';
+  return 'later';
 }

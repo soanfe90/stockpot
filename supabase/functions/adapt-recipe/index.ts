@@ -14,7 +14,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@4.6.1';
 
-import { enforceBudget, STAPLES } from '../_shared/budget.ts';
+import { enforcePlan, STAPLES } from '../_shared/budget.ts';
 import { corsHeaders, fail, json } from '../_shared/cors.ts';
 import { activeProvider, generateStructured } from '../_shared/llm.ts';
 
@@ -124,11 +124,22 @@ Deno.serve(async (req: Request) => {
       ],
     });
 
-    // The same guard the planner uses: an adaptation that overdraws the pantry
-    // is exactly the failure adapting was supposed to prevent.
-    const { accepted, violations } = enforceBudget(
-      [{ day_offset: 0, name: adapted.name, ingredients: adapted.ingredients }],
-      pantry
+    // The same guard the planner uses, with no allowance to buy anything:
+    // adapting exists precisely to fit a dish to what is in the house right
+    // now, so "go and buy something" is not an answer it may give.
+    const { accepted, violations } = enforcePlan(
+      [
+        {
+          day_offset: 0,
+          name: adapted.name,
+          ingredients: adapted.ingredients.map((ing) => ({
+            ...ing,
+            source: (ing.product_id ? 'pantry' : 'staple') as 'pantry' | 'staple',
+          })),
+        },
+      ],
+      pantry,
+      { pantryOnlyDays: 1, maxShoppingDays: 0, maxNewProducts: 0 }
     );
     if (accepted.length === 0) {
       return fail(

@@ -16,11 +16,18 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@4.6.1';
 
-import { enforceBudget, STAPLES } from '../_shared/budget.ts';
+import { enforcePlan, STAPLES, type PlanLimits, type Purchase } from '../_shared/budget.ts';
 import { corsHeaders, fail, json } from '../_shared/cors.ts';
 import { activeProvider, generateStructured } from '../_shared/llm.ts';
 
 const CATEGORIES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+
+/** Aisles, for products the plan asks the household to buy. Mirrors CATEGORIES
+ *  in src/lib/categories.ts, which is what the app renders and groups by. */
+const CATEGORIES_FOR_BUYING = [
+  'Produce', 'Meat & Fish', 'Dairy & Eggs', 'Bakery', 'Grains & Pasta',
+  'Canned & Jarred', 'Frozen', 'Condiments & Spices', 'Snacks', 'Drinks', 'Other',
+] as const;
 const MAX_ATTEMPTS = 3;
 
 /**
@@ -37,6 +44,19 @@ const DEFAULT_MEAL_MINUTES: Record<(typeof CATEGORIES)[number], number> = {
 
 type MealMinutes = Partial<Record<(typeof CATEGORIES)[number], number>>;
 
+/**
+ * How far a plan of each length may reach past the shelf.
+ *
+ * A single meal or a single day is today: sending someone to the shop before
+ * they can cook tonight is worse than a dull dinner, so those stay closed. A
+ * week is where the pantry runs thin and repeats itself, and where two trips
+ * buys a great deal of variety.
+ */
+function limitsFor(scope: 'single' | 'day' | 'week', days: number): PlanLimits {
+  if (scope === 'week') return { pantryOnlyDays: 2, maxShoppingDays: 2, maxNewProducts: 10 };
+  return { pantryOnlyDays: days, maxShoppingDays: 0, maxNewProducts: 0 };
+}
+
 /** The meal a regeneration stands in for: its plan, its place and its time. */
 type ReplacedSlot = {
   id: string;
@@ -52,8 +72,18 @@ type ReplacedSlot = {
 };
 
 const IngredientSchema = z.object({
-  product_id: z.string().nullable().describe('An id from the pantry list, or null for an untracked staple'),
+  source: z
+    .enum(['pantry', 'staple', 'buy'])
+    .describe(
+      'pantry: already in the house, product_id required. staple: salt, oil, water and the like, ' +
+        'never tracked. buy: the household does not have it and will need to buy it.'
+    ),
+  product_id: z.string().nullable().describe('An id from the pantry list for source "pantry", otherwise null'),
   name: z.string(),
+  category: z
+    .string()
+    .nullable()
+    .describe('For source "buy" only: which aisle it belongs to, from the category list given.'),
   qty: z
     .number()
     .positive()
@@ -86,12 +116,31 @@ const PlanSchema = z.object({
 
 type Slot = z.infer<typeof SlotSchema>;
 
-const SYSTEM_RULES = `You plan meals from a household's actual pantry.
+const SYSTEM_RULES = `You plan meals around a household's actual pantry.
 
-The single rule that matters: **every tracked ingredient must come from the
-pantry list you are given, referenced by its exact product_id, and the whole
-plan together must not use more of anything than the pantry holds.** A plan
-that calls for food the household does not have is worse than no plan.
+Every ingredient states where it comes from:
+
+- **pantry** -- already in the house. Give its exact product_id from the list.
+  Across the whole plan these must never add up to more than the pantry holds.
+- **staple** -- salt, pepper, water, cooking oil. Never tracked, never bought.
+- **buy** -- the household does not have it and will need to buy it. product_id
+  is null; give a name and a category.
+
+Reaching for **buy** is allowed, and is how a thin pantry still gets a varied
+week. It is also what sends someone to a supermarket, so it is bounded:
+
+- The opening days of the plan must be entirely **pantry** and **staple**. The
+  household has to be able to cook tonight without going anywhere.
+- Never **buy** something the pantry already holds enough of. Look it up first.
+- Introduce new things on as few days as possible, and reuse each one across
+  several meals. Three meals built around one bought ingredient is one trip;
+  three meals each needing their own is three trips, and that is a worse plan
+  even if it reads better.
+- Some items are already on the household's shopping list. Those are being
+  bought anyway, so leaning on them costs nothing extra -- prefer them over
+  anything new.
+- If the pantry can carry the whole plan on its own, let it. A plan that needs
+  no shopping at all is the best outcome, not a boring one.
 
 - Quantities are in each product's base unit, which the pantry list states for
   every item. Never switch units.
@@ -114,7 +163,11 @@ that calls for food the household does not have is worse than no plan.
 - total_calories is for the whole recipe at the servings you state, not per
   portion. Estimate honestly rather than rounding to something tidy.
 
-If the pantry cannot support a full plan, return fewer meals. Short and true
+Do not repeat a dish, or lean on the same few products meal after meal, just
+because the pantry is small. That is exactly what **buy** is for: one or two
+well-chosen additions should unlock a week that does not repeat itself.
+
+If you still cannot fill the plan honestly, return fewer meals. Short and true
 beats long and invented.`;
 
 Deno.serve(async (req: Request) => {
@@ -256,9 +309,34 @@ Deno.serve(async (req: Request) => {
     const days = replacing ? 1 : body.scope === 'week' ? 7 : 1;
     const wanted = replacing || body.scope === 'single' ? 1 : days * 3;
 
+    // A swap lives inside a plan that already made its shopping decisions, so
+    // it gets no fresh allowance: it has to work with what is there.
+    const limits = replacing
+      ? { pantryOnlyDays: 1, maxShoppingDays: 0, maxNewProducts: 0 }
+      : limitsFor(body.scope, days);
+
+    // Things the household is already going to buy. Leaning on these costs no
+    // extra trip, which makes them the cheapest variety available.
+    const { data: listed } = await supabase
+      .from('shopping_item')
+      .select('name, qty, display_unit, needed_by, checked, list:list_id (status)')
+      .eq('household_id', body.household_id)
+      .eq('checked', false);
+
+    const onTheList = ((listed ?? []) as unknown as {
+      name: string;
+      qty: number;
+      display_unit: string;
+      needed_by: string | null;
+      list: { status: string } | null;
+    }[])
+      .filter((i) => i.list?.status !== 'closed')
+      .map((i) => ({ name: i.name, qty: Number(i.qty), unit: i.display_unit, needed_by: i.needed_by }));
+
     let accepted: Slot[] = [];
     let violations: string[] = [];
     let notes: string | null = null;
+    let purchases: Purchase[] = [];
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS && accepted.length === 0; attempt++) {
       const parsed = await generateStructured({
@@ -274,6 +352,14 @@ Deno.serve(async (req: Request) => {
               JSON.stringify(pantry),
               ``,
               `Recently cooked here, for reuse where it fits: ${JSON.stringify(history ?? [])}`,
+              ``,
+              `Already on the shopping list, so free to plan around: ${JSON.stringify(onTheList)}`,
+              ``,
+              `Categories for anything you ask them to buy: ${CATEGORIES_FOR_BUYING.join(', ')}.`,
+              ``,
+              `Rules for this plan: the first ${limits.pantryOnlyDays} day(s) must come entirely from`,
+              `the pantry; at most ${limits.maxNewProducts} different things may be bought across the`,
+              `whole plan, first needed on at most ${limits.maxShoppingDays} distinct day(s).`,
               ``,
               `Preferences: ${JSON.stringify(body.prefs ?? {})}`,
               ``,
@@ -298,9 +384,10 @@ Deno.serve(async (req: Request) => {
       });
 
       notes = parsed.notes;
-      const checked = enforceBudget(parsed.slots, pantry);
+      const checked = enforcePlan(parsed.slots, pantry, limits);
       violations = checked.violations;
       accepted = checked.accepted;
+      purchases = checked.purchases;
     }
 
     if (accepted.length === 0) {
@@ -338,6 +425,46 @@ Deno.serve(async (req: Request) => {
       plan = created;
     }
 
+    // Everything the plan wants but the house does not have becomes a real
+    // product with no stock in it. That is what lets the rest of the app carry
+    // it without a single new mechanism: plan_shortfalls measures per product,
+    // add_plan_gaps_to_list writes per product, closing a shopping trip stocks
+    // per product, and cooking deducts per product. `planned` marks it as an
+    // intention rather than something the household keeps, so it does not turn
+    // up on the shopping list on its own account.
+    const boughtIds = new Map<string, { id: string; base_unit: string }>();
+    for (const item of purchases) {
+      const { data: existing } = await supabase
+        .from('product')
+        .select('id, base_unit')
+        .eq('household_id', body.household_id)
+        .ilike('name', item.name)
+        .maybeSingle();
+
+      if (existing) {
+        boughtIds.set(item.key, existing);
+        continue;
+      }
+
+      const spec = specFor(accepted, item.key);
+      const { data: created, error: createError } = await supabase
+        .from('product')
+        .insert({
+          household_id: body.household_id,
+          name: item.name,
+          category: spec.category,
+          base_unit: spec.base_unit,
+          display_unit: spec.display_unit,
+          planned: true,
+        })
+        .select('id, base_unit')
+        .single();
+      // A name that collided with an existing product is not worth failing a
+      // whole plan over; the ingredient simply goes in untracked.
+      if (createError || !created) continue;
+      boughtIds.set(item.key, created);
+    }
+
     let position = replacing ? replacing.position : 0;
     let writtenSlotId: string | null = null;
     for (const slot of accepted) {
@@ -360,16 +487,24 @@ Deno.serve(async (req: Request) => {
         .single();
       if (recipeError) throw recipeError;
 
-      const ingredients = slot.ingredients.map((ing, index) => ({
-        recipe_id: recipe.id,
-        product_id: ing.product_id,
-        name: ing.name,
-        qty: Math.max(0, ing.qty),
-        display_unit: ing.display_unit,
-        base_unit: pantry.find((p) => p.product_id === ing.product_id)?.base_unit ?? 'g',
-        optional: ing.optional,
-        position: index,
-      }));
+      const ingredients = slot.ingredients.map((ing, index) => {
+        // A bought line points at the product created for it above, so it is
+        // indistinguishable downstream from one that was on the shelf all
+        // along -- the only difference is that there is none of it yet.
+        const bought = ing.source === 'buy' ? boughtIds.get(ing.name.trim().toLowerCase()) : undefined;
+        const productId = ing.source === 'pantry' ? ing.product_id : (bought?.id ?? null);
+        return {
+          recipe_id: recipe.id,
+          product_id: productId,
+          name: ing.name,
+          qty: Math.max(0, ing.qty),
+          display_unit: ing.display_unit,
+          base_unit:
+            pantry.find((p) => p.product_id === productId)?.base_unit ?? bought?.base_unit ?? 'g',
+          optional: ing.optional,
+          position: index,
+        };
+      });
       const { error: ingError } = await supabase.from('recipe_ingredient').insert(ingredients);
       if (ingError) throw ingError;
 
@@ -424,6 +559,12 @@ Deno.serve(async (req: Request) => {
       // Nonzero only when a swap inside an approved plan could not fully claim
       // what the replacement needs. Said plainly rather than hidden.
       shortfall_units: shortfall,
+      // What the plan will send them to the shop for, and when each is first
+      // wanted. The review screen shows this before anything is approved.
+      purchases: purchases.map((item) => ({
+        name: item.name,
+        first_needed_on: addDays(body.starts_on, item.firstNeededDay),
+      })),
     });
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e), 502);
@@ -463,4 +604,24 @@ function mealTime(
   const base = new Date(`${addDays(startsOn, dayOffset)}T00:00:00Z`);
   base.setUTCMinutes(base.getUTCMinutes() + Math.round(minutes) - tzOffsetMinutes);
   return base;
+}
+
+/**
+ * The units and aisle for something the plan wants to buy, read off the first
+ * line that asked for it. The model states these per ingredient; a product row
+ * needs exactly one of each, and the first mention is as good as any.
+ */
+function specFor(slots: Slot[], k: string): { category: string; base_unit: string; display_unit: string } {
+  for (const slot of slots) {
+    for (const ing of slot.ingredients) {
+      if (ing.source !== 'buy' || ing.name.trim().toLowerCase() !== k) continue;
+      const unit = (ing.display_unit || 'g').trim();
+      return {
+        category: ing.category ?? 'Other',
+        base_unit: unit === 'ml' || unit === 'l' ? 'ml' : unit === 'ud' || unit === 'unit' ? 'unit' : 'g',
+        display_unit: unit,
+      };
+    }
+  }
+  return { category: 'Other', base_unit: 'g', display_unit: 'g' };
 }

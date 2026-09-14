@@ -72,6 +72,11 @@ export type Product = {
   display_unit: string;
   grams_per_unit: number | null;
   default_useful_life_days: number;
+  /** Created by the planner for a meal and never yet stocked. It is a real
+   *  product so the shortfall, shopping and cooking paths can carry it, but it
+   *  is not something the household keeps -- so it stays out of the pantry
+   *  list until some of it is actually bought. */
+  planned: boolean;
   low_threshold: number;
   storage: StoragePlace;
   image_url: string | null;

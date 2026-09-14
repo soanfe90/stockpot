@@ -66,15 +66,29 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   the worst thing this feature can do.
 - **`needs_restocking()` is the single definition of what belongs on the list.**
   Both the upsert and the cleanup read it, so they cannot disagree.
-- **A generated plan is never trusted.** `enforceBudget` in
+- **A generated plan is never trusted.** `enforcePlan` in
   `supabase/functions/_shared/budget.ts` checks it against real quantities
   before it is written. It lives outside the Edge Function so it can be tested
   with `npm run test:budget`; never inline a second copy.
-- **An ingredient of no amount is a violation, not a value.** `enforceBudget`
+- **An ingredient of no amount is a violation, not a value.** `enforcePlan`
   refuses any ingredient at qty <= 0, optional ones included, and it checks that
   before the optional skip. Told a product was spent, the model would list it at
   zero and the slot would pass — reserving nothing, deducting nothing, and never
   reaching the shopping list. An invisible hole in a plan that looked complete.
+- **A plan may reach past the shelf, under bounds.** Every ingredient states its
+  `source`: `pantry` (product_id required), `staple` (whitelist only), or `buy`.
+  `PlanLimits` keeps `buy` honest — the opening days must be pantry-only so
+  someone can cook tonight without shopping, nothing already in the house may be
+  bought, and new things must be introduced on few days because each of those
+  days is a trip. A day or single plan gets no allowance at all; only a week
+  does, and `adapt-recipe` is closed entirely.
+- **A `buy` ingredient becomes a real product with no stock**, marked
+  `product.planned`. That is what lets `plan_shortfalls`, `add_plan_gaps_to_list`,
+  `close_purchase` and `finish_cooking` carry it with no new mechanism.
+  `needs_restocking` excludes planned products — they reach the list through the
+  plan that wants them, never on their own — `add_stock` clears the flag, and
+  `prune_planned_products` clears out intentions no live plan, list or lot
+  still wants.
 - **Only `finish_cooking` removes stock for a meal.** Approving reserves,
   skipping and cancelling release. Every one of those goes through the database
   under a row lock.

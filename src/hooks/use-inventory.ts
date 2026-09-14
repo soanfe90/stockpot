@@ -46,7 +46,12 @@ export function useInventory(householdId: string | null): InventoryData {
         byProduct.set(row.product_id, row);
       }
 
-      const merged: StockedProduct[] = ((catalog.data ?? []) as Product[]).map((product) => {
+      const merged: StockedProduct[] = ((catalog.data ?? []) as Product[])
+        // A product the planner invented is an intention, not stock. It earns
+        // its place in the pantry the moment any of it is bought, and until
+        // then it belongs on the shopping list and nowhere else.
+        .filter((product) => !product.planned || Number(byProduct.get(product.id)?.qty_total ?? 0) > 0)
+        .map((product) => {
         const s = byProduct.get(product.id);
         return {
           ...product,
@@ -55,7 +60,7 @@ export function useInventory(householdId: string | null): InventoryData {
           next_expiry: s?.next_expiry ?? null,
           lot_count: Number(s?.lot_count ?? 0),
         };
-      });
+        });
 
       const aliasMap: Record<string, string[]> = {};
       for (const row of (aliasRows.data ?? []) as { product_id: string; raw_text: string }[]) {
