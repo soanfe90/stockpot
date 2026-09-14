@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import type { ComponentProps, ReactNode } from 'react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import {
   type ViewStyle } from 'react-native';
 import { Text } from '@/components/ui/text';
 
+import { formatMinutes, parseTime, stepMinutes } from '@/lib/time';
 import { radius, space, type as type_, type Tokens } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
@@ -328,5 +329,93 @@ export function Loading() {
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.ground }}>
       <ActivityIndicator color={t.accentText} />
     </View>
+  );
+}
+
+/* ------------------------------------------------------------------ time -- */
+
+/**
+ * A clock time, as minutes from midnight.
+ *
+ * Typed rather than picked: the platform pickers are not in Expo Go, and a
+ * four-digit time is faster to type than it is to spin to anyway. The arrows
+ * are there for the common case of nudging a meal half an hour either way.
+ *
+ * The field keeps its own draft string while it is being typed, because
+ * "1" and "13:" are not times and must not be pushed upstream as one.
+ */
+export function TimeField({
+  label,
+  minutes,
+  onChange,
+  hint }: {
+  label: string;
+  minutes: number;
+  onChange: (minutes: number) => void;
+  hint?: string;
+}) {
+  const t = useTokens();
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const commit = (text: string) => {
+    const parsed = parseTime(text);
+    if (parsed !== null) onChange(parsed);
+    setDraft(null);
+  };
+
+  return (
+    <View style={{ gap: space.sm }}>
+      <Eyebrow>{label}</Eyebrow>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+        <Stepper icon="remove" onPress={() => onChange(stepMinutes(minutes, -30))} label={`${label} earlier`} />
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: t.surface,
+            borderColor: t.line,
+            borderWidth: StyleSheet.hairlineWidth * 2,
+            borderRadius: radius.md }}>
+          <TextInput
+            value={draft ?? formatMinutes(minutes)}
+            onChangeText={setDraft}
+            onBlur={() => commit(draft ?? '')}
+            onSubmitEditing={() => commit(draft ?? '')}
+            keyboardType="numbers-and-punctuation"
+            selectTextOnFocus
+            placeholderTextColor={t.inkFaint}
+            style={{
+              paddingVertical: 12,
+              textAlign: 'center',
+              fontFamily: type_.figure.fontFamily,
+              fontSize: 19,
+              color: t.ink }}
+          />
+        </View>
+        <Stepper icon="add" onPress={() => onChange(stepMinutes(minutes, 30))} label={`${label} later`} />
+      </View>
+      {hint ? <Text style={[type_.small, { color: t.inkFaint, fontSize: 12.5 }]}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+function Stepper({ icon, onPress, label }: { icon: IconName; onPress: () => void; label: string }) {
+  const t = useTokens();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={6}
+      style={({ pressed }) => ({
+        width: 44,
+        height: 44,
+        borderRadius: radius.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: pressed ? t.accentWash : t.surface,
+        borderColor: t.line,
+        borderWidth: StyleSheet.hairlineWidth * 2 })}>
+      <Ionicons name={icon} size={19} color={t.accentText} />
+    </Pressable>
   );
 }

@@ -4,7 +4,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, EmptyState, ErrorNote, Eyebrow, Loading } from '@/components/ui/kit';
+import { Button, EmptyState, ErrorNote, Eyebrow, Icon, Loading } from '@/components/ui/kit';
 import { loadSchedule, mealLabel, skipMeal } from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
 import type { ScheduledMeal } from '@/lib/types';
@@ -66,6 +66,20 @@ export default function PlanScreen() {
           <Text style={{ fontSize: 12, color: t.inkFaint }}>
             {meals.length ? `${meals.length} still to cook` : 'Nothing scheduled'}
           </Text>
+          {/* Without this the plan is only reachable in the moments after it is
+              generated, which is where saving it to the library lives. */}
+          {meals.length ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push(`/plan/${meals[0].plan_id}`)}
+              hitSlop={6}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingTop: space.xs }}>
+              <Text style={{ fontSize: 13, fontFamily: fonts.semibold, color: t.accentText }}>
+                Open the whole plan
+              </Text>
+              <Icon name="chevron-forward" size={14} color={t.accentText} />
+            </Pressable>
+          ) : null}
         </View>
 
         {error ? (
@@ -87,6 +101,7 @@ export default function PlanScreen() {
               <NextMealCard
                 meal={next}
                 onCook={() => router.push(`/cook/${next.id}`)}
+                onAdjust={() => router.push(`/meal/${next.id}`)}
                 onSkip={async () => {
                   await skipMeal(next.id);
                   await load();
@@ -109,9 +124,18 @@ export default function PlanScreen() {
                         backgroundColor: pressed ? t.surfaceAlt : t.surface,
                         borderTopWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
                         borderTopColor: t.line })}>
-                      <Text style={{ fontSize: 11, color: t.inkFaint, fontFamily: fonts.semibold }}>
-                        {mealLabel(meal.scheduled_at)} · {meal.category}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                        <Text style={{ flex: 1, fontSize: 11, color: t.inkFaint, fontFamily: fonts.semibold }}>
+                          {mealLabel(meal.scheduled_at)} · {meal.category}
+                        </Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Adjust ${meal.recipe.name}`}
+                          onPress={() => router.push(`/meal/${meal.id}`)}
+                          hitSlop={10}>
+                          <Icon name="options-outline" size={17} color={t.accentText} />
+                        </Pressable>
+                      </View>
                       <Text style={{ fontSize: 15.5, fontFamily: fonts.semibold, color: t.ink }}>{meal.recipe.name}</Text>
                     </Pressable>
                   ))}
@@ -145,9 +169,11 @@ export default function PlanScreen() {
 function NextMealCard({
   meal,
   onCook,
+  onAdjust,
   onSkip }: {
   meal: ScheduledMeal;
   onCook: () => void;
+  onAdjust: () => void;
   onSkip: () => void;
 }) {
   const t = useTokens();
@@ -178,7 +204,8 @@ function NextMealCard({
       </View>
       <View style={{ flexDirection: 'row', gap: space.sm }}>
         <Button label="Cook" onPress={onCook} style={{ flex: 1 }} />
-        <Button label="Skip" variant="secondary" onPress={onSkip} />
+        <Button label="Adjust" variant="secondary" onPress={onAdjust} />
+        <Button label="Skip" variant="ghost" onPress={onSkip} />
       </View>
     </View>
   );

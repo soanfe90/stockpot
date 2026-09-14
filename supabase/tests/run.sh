@@ -36,4 +36,7 @@ psql -q -v ON_ERROR_STOP=1 -f supabase/tests/05_library_smoke.sql
 
 echo "running preferences smoke test"
 psql -q -v ON_ERROR_STOP=1 -f supabase/tests/06_preferences_smoke.sql
+
+echo "running mealtime and editing smoke test"
+psql -q -v ON_ERROR_STOP=1 -f supabase/tests/07_meal_times_smoke.sql
 echo "all checks passed"

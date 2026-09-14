@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Body, Button, Card, Chips, ErrorNote, Field, Segmented, Title } from '@/components/ui/kit';
 import { generatePlan } from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
-import { CUISINES, DIET_TYPES, GOALS, type PlanScope } from '@/lib/types';
+import { CUISINES, DEFAULT_MEAL_TIMES, DIET_TYPES, GOALS, type PlanScope } from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
 import { space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
@@ -32,11 +32,19 @@ export default function CreatePlanScreen() {
     setBusy(true);
     setError(null);
     try {
-      const result = await generatePlan(household.id, scope, new Date().toISOString().slice(0, 10), {
-        diets,
-        cuisines,
-        goals,
-        servings: Math.max(1, Number.parseInt(servings, 10) || 2) });
+      const result = await generatePlan(
+        household.id,
+        scope,
+        new Date().toISOString().slice(0, 10),
+        {
+          diets,
+          cuisines,
+          goals,
+          servings: Math.max(1, Number.parseInt(servings, 10) || 2) },
+        // Sent with the request rather than read server-side, so a plan lands
+        // at the times this member actually eats at, on this device's clock.
+        profile?.meal_times ?? DEFAULT_MEAL_TIMES
+      );
       router.replace(`/plan/${result.plan_id}`);
     } catch (e) {
       setError(errorMessage(e));

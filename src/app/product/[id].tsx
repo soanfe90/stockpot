@@ -27,6 +27,7 @@ export default function ProductScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [lowThreshold, setLowThreshold] = useState('');
+  const [usefulLife, setUsefulLife] = useState('');
   const [addQty, setAddQty] = useState('');
   const [addExpiry, setAddExpiry] = useState('');
   const [addStorage, setAddStorage] = useState<StoragePlace>('pantry');
@@ -51,6 +52,7 @@ export default function ProductScreen() {
       setLots((lotRes.data ?? []) as InventoryLot[]);
       setAddStorage(loaded.storage);
       setAddExpiry(isoDateIn(loaded.default_useful_life_days));
+      setUsefulLife(String(loaded.default_useful_life_days));
       setLowThreshold(
         loaded.low_threshold > 0
           ? String(fromBase(loaded.low_threshold, loaded.base_unit, loaded.display_unit))
@@ -149,6 +151,51 @@ export default function ProductScreen() {
     }
   }
 
+  /**
+   * Where a product lives and how long it keeps are plain attributes, not
+   * quantities, so they are written straight to the row -- the ledger rule is
+   * about stock amounts, and neither of these moves a gram.
+   */
+  async function updateProduct(patch: Partial<Product>) {
+    if (!product) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { error: updateError } = await supabase.from('product').update(patch).eq('id', product.id);
+      if (updateError) throw updateError;
+      await load();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Moving a lot to another shelf. Its quantity, its expiry and its place in
+   *  the oldest-first queue are all untouched. */
+  async function updateLot(lot: InventoryLot, patch: Partial<InventoryLot>) {
+    setBusy(true);
+    setError(null);
+    try {
+      const { error: updateError } = await supabase.from('inventory_lot').update(patch).eq('id', lot.id);
+      if (updateError) throw updateError;
+      await load();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function saveUsefulLife() {
+    const days = Number.parseInt(usefulLife, 10);
+    if (!Number.isFinite(days) || days < 0 || days > 3650) {
+      setError('Give a useful life between 0 and 3650 days.');
+      return;
+    }
+    void updateProduct({ default_useful_life_days: days });
+  }
+
   function confirmDelete() {
     if (!product) return;
     Alert.alert(
@@ -216,6 +263,7 @@ export default function ProductScreen() {
                   first={index === 0}
                   busy={busy}
                   onCorrect={(value) => void correctLot(lot, value)}
+                  onMove={(storage) => void updateLot(lot, { storage })}
                 />
               ))}
             </View>
@@ -257,6 +305,30 @@ export default function ProductScreen() {
 
         <Card>
           <View style={{ gap: space.lg }}>
+            <Eyebrow>Where it lives, and how long it keeps</Eyebrow>
+            {/* This is the product's default, applied to stock added from now
+                on. Lots already on the shelf keep the dates they were given --
+                changing this does not rewrite history. */}
+            <Segmented
+              label="Usually stored in"
+              options={STORAGE_PLACES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
+              value={product.storage}
+              onChange={(storage) => void updateProduct({ storage })}
+            />
+            <Field
+              label="Useful life"
+              value={usefulLife}
+              onChangeText={setUsefulLife}
+              keyboardType="number-pad"
+              suffix="days"
+              hint={`Used to fill in an expiry date whenever you add stock without one. Existing lots keep their own dates.`}
+            />
+            <Button label="Save useful life" variant="secondary" onPress={saveUsefulLife} busy={busy} />
+          </View>
+        </Card>
+
+        <Card>
+          <View style={{ gap: space.lg }}>
             <Eyebrow>Running low</Eyebrow>
             <Field
               label="Tell me when it drops below"
@@ -282,12 +354,14 @@ function LotRow({
   product,
   first,
   busy,
-  onCorrect }: {
+  onCorrect,
+  onMove }: {
   lot: InventoryLot;
   product: Product;
   first: boolean;
   busy: boolean;
   onCorrect: (value: string) => void;
+  onMove: (storage: StoragePlace) => void;
 }) {
   const t = useTokens();
   const [editing, setEditing] = useState(false);
@@ -318,7 +392,7 @@ function LotRow({
       </View>
 
       {editing ? (
-        <View style={{ gap: space.sm }}>
+        <View style={{ gap: space.lg }}>
           <Field
             label="Correct to"
             value={draft}
@@ -326,6 +400,14 @@ function LotRow({
             keyboardType="decimal-pad"
             suffix={product.display_unit}
             autoFocus
+          />
+          {/* Saved on tap rather than with the quantity: moving a bag to the
+              freezer is its own decision, and usually the only one being made. */}
+          <Segmented
+            label="Stored in"
+            options={STORAGE_PLACES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
+            value={lot.storage}
+            onChange={onMove}
           />
           <View style={{ flexDirection: 'row', gap: space.sm }}>
             <Button
@@ -347,7 +429,9 @@ function LotRow({
             setDraft(String(fromBase(Number(lot.qty), product.base_unit, product.display_unit)));
             setEditing(true);
           }}>
-          <Text style={{ color: t.accentText, fontSize: 13, fontFamily: fonts.semibold }}>Correct quantity</Text>
+          <Text style={{ color: t.accentText, fontSize: 13, fontFamily: fonts.semibold }}>
+            Correct quantity or move it
+          </Text>
         </Pressable>
       )}
     </View>

@@ -1,10 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, Card, ErrorNote, Eyebrow, Loading } from '@/components/ui/kit';
+import { Button, Card, ErrorNote, Eyebrow, Icon, Loading } from '@/components/ui/kit';
 import { savePlanAsTemplate } from '@/lib/library';
 import { remindersAvailable, scheduleReminders } from '@/lib/notifications';
 import { addPlanGaps, approvePlan, cancelPlan, loadPlan, loadSchedule, mealLabel } from '@/lib/planning';
@@ -147,6 +147,7 @@ export default function ReviewPlanScreen() {
           </Text>
           <Text style={{ fontSize: 13, color: t.inkMuted, lineHeight: 19 }}>
             Every ingredient below is already in your pantry. Nothing is reserved until you approve.
+            {approved ? '' : ' Tap any meal to change its time, its ingredients, or swap it for another.'}
           </Text>
         </View>
 
@@ -176,17 +177,30 @@ export default function ReviewPlanScreen() {
             <Eyebrow>{day}</Eyebrow>
             <View style={{ borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: t.line, overflow: 'hidden' }}>
               {dayMeals.map((meal, index) => (
-                <View
+                <Pressable
                   key={meal.id}
-                  style={{
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${meal.recipe.name}`}
+                  onPress={() => router.push(`/meal/${meal.id}`)}
+                  style={({ pressed }) => ({
                     padding: space.lg,
                     gap: 4,
-                    backgroundColor: t.surface,
+                    backgroundColor: pressed ? t.accentWash : t.surface,
                     borderTopWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
-                    borderTopColor: t.line }}>
-                  <Text style={{ fontSize: 10.5, fontFamily: fonts.bold, letterSpacing: 0.8, textTransform: 'uppercase', color: t.accentText }}>
-                    {meal.category} · {mealLabel(meal.scheduled_at).split(' ').slice(-1)[0]}
-                  </Text>
+                    borderTopColor: t.line })}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontSize: 10.5,
+                        fontFamily: fonts.bold,
+                        letterSpacing: 0.8,
+                        textTransform: 'uppercase',
+                        color: t.accentText }}>
+                      {meal.category} · {mealLabel(meal.scheduled_at).split(' ').slice(-1)[0]}
+                    </Text>
+                    <Icon name="chevron-forward" size={15} color={t.inkFaint} />
+                  </View>
                   <Text style={{ fontSize: 16, fontFamily: fonts.semibold, color: t.ink }}>{meal.recipe.name}</Text>
                   <Text style={{ fontSize: 12.5, color: t.inkFaint }}>
                     {[
@@ -198,7 +212,7 @@ export default function ReviewPlanScreen() {
                       .filter(Boolean)
                       .join(' · ')}
                   </Text>
-                </View>
+                </Pressable>
               ))}
             </View>
           </View>
@@ -219,10 +233,11 @@ export default function ReviewPlanScreen() {
           borderTopWidth: StyleSheet.hairlineWidth * 2,
           borderTopColor: t.line }}>
         {approved ? (
-          <Button label="Save as a reusable plan" variant="secondary" onPress={saveAsTemplate} />
+          <Button label="Save to library as a reusable plan" variant="secondary" onPress={saveAsTemplate} />
         ) : (
           <>
             <Button label="Approve and reserve ingredients" onPress={approve} busy={busy} />
+            <Button label="Save to library as a reusable plan" variant="secondary" onPress={saveAsTemplate} />
             <Button label="Discard" variant="ghost" onPress={discard} />
           </>
         )}

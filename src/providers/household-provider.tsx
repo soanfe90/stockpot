@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { supabase } from '@/lib/supabase';
-import type { Household, MemberRole, UserProfile } from '@/lib/types';
+import type { Household, MealTimes, MemberRole, UserProfile } from '@/lib/types';
 
 import { useSession } from './session-provider';
 
@@ -9,6 +9,9 @@ type Preferences = {
   diets: string[];
   cuisines: string[];
   goals: string[];
+  /** Omitted means "leave them as they are" -- save_preferences reads null the
+   *  same way, so editing diets alone never resets someone's schedule. */
+  mealTimes?: MealTimes;
 };
 
 type HouseholdContextValue = {
@@ -96,11 +99,12 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   );
 
   const savePreferences = useCallback(
-    async ({ diets, cuisines, goals }: Preferences) => {
+    async ({ diets, cuisines, goals, mealTimes }: Preferences) => {
       const { error } = await supabase.rpc('save_preferences', {
         p_diet_types: diets,
         p_cuisines: cuisines,
         p_goals: goals,
+        p_meal_times: mealTimes ?? null,
       });
       if (error) throw error;
       await refresh();

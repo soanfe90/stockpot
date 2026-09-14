@@ -114,6 +114,7 @@ function RootNavigator() {
         <Stack.Screen name="shopping/history" options={{ ...header, headerShown: true, title: 'Past trips' }} />
         <Stack.Screen name="plan/create" options={{ ...header, presentation: 'modal', headerShown: true, title: 'New plan' }} />
         <Stack.Screen name="plan/[id]" options={{ ...header, headerShown: true, title: 'Review plan' }} />
+        <Stack.Screen name="meal/[id]" options={{ ...header, headerShown: true, title: 'This meal' }} />
         <Stack.Screen name="cook/[id]" options={{ ...header, headerShown: true, title: 'Cooking' }} />
         <Stack.Screen name="recipe/[id]" options={{ ...header, headerShown: true, title: 'Recipe' }} />
       </Stack>

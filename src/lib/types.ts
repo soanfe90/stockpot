@@ -14,6 +14,26 @@ export type MovementReason = 'purchase' | 'cook' | 'waste' | 'correction';
 
 export const STORAGE_PLACES: StoragePlace[] = ['fridge', 'freezer', 'pantry'];
 
+/**
+ * When each meal lands, in minutes from local midnight. Minutes rather than a
+ * time string because every use of them is arithmetic against a date.
+ */
+export type MealTimes = {
+  breakfast: number;
+  lunch: number;
+  dinner: number;
+  snack: number;
+};
+
+/** Mirrors the user_profile.meal_times default, and DEFAULT_MEAL_MINUTES in
+ *  generate-plan. All three have to agree. */
+export const DEFAULT_MEAL_TIMES: MealTimes = {
+  breakfast: 8 * 60,
+  lunch: 13 * 60,
+  dinner: 20 * 60,
+  snack: 17 * 60,
+};
+
 export type UserProfile = {
   user_id: string;
   display_name: string | null;
@@ -21,6 +41,7 @@ export type UserProfile = {
   cuisines: string[];
   goals: string[];
   allergens: string[];
+  meal_times: MealTimes;
   /** Null until the preference questions have been answered. Empty arrays are
    *  a valid answer, so they cannot stand in for "not asked yet". */
   onboarded_at: string | null;

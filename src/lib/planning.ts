@@ -11,6 +11,7 @@ import { errorMessage, supabase } from './supabase';
 import type {
   CookDeduction,
   MealPlan,
+  MealTimes,
   PlanScope,
   PlanShortfall,
   Recipe,
@@ -24,6 +25,15 @@ export type PlanPrefs = {
   goals: string[];
   servings: number;
 };
+
+/**
+ * The offset the server needs is the household's distance *east* of UTC, which
+ * is the negation of what JavaScript reports: getTimezoneOffset() counts the
+ * other way. Every caller has to agree on this, so nobody derives it by hand.
+ */
+function tzOffsetMinutes(): number {
+  return -new Date().getTimezoneOffset();
+}
 
 export type GenerateResult = {
   plan_id: string;
@@ -40,7 +50,8 @@ export async function generatePlan(
   householdId: string,
   scope: PlanScope,
   startsOn: string,
-  prefs: PlanPrefs
+  prefs: PlanPrefs,
+  mealTimes?: MealTimes
 ): Promise<GenerateResult> {
   const { data, error } = await supabase.functions.invoke('generate-plan', {
     body: {
@@ -48,11 +59,68 @@ export async function generatePlan(
       scope,
       starts_on: startsOn,
       prefs,
-      tz_offset_minutes: -new Date().getTimezoneOffset(),
+      tz_offset_minutes: tzOffsetMinutes(),
+      meal_times: mealTimes,
     },
   });
   if (error) throw new Error(await readFunctionError(error));
   return data as GenerateResult;
+}
+
+/**
+ * Swaps one meal of a draft for a fresh suggestion, keeping its plan and its
+ * place in the day. Only drafts: an approved plan's ingredients are reserved,
+ * and rewriting a meal underneath a reservation would leave the two disagreeing
+ * about what the pantry owes.
+ */
+export async function regenerateSlot(
+  householdId: string,
+  slotId: string,
+  startsOn: string,
+  prefs: PlanPrefs
+): Promise<GenerateResult> {
+  const { data, error } = await supabase.functions.invoke('generate-plan', {
+    body: {
+      household_id: householdId,
+      scope: 'single',
+      starts_on: startsOn,
+      prefs,
+      tz_offset_minutes: tzOffsetMinutes(),
+      replace_slot_id: slotId,
+    },
+  });
+  if (error) throw new Error(await readFunctionError(error));
+  return data as GenerateResult;
+}
+
+/** Moves a meal. Time is not stock, so no reservation changes hands. */
+export async function rescheduleSlot(slotId: string, when: Date): Promise<void> {
+  const { error } = await supabase.rpc('reschedule_slot', {
+    p_slot_id: slotId,
+    p_scheduled_at: when.toISOString(),
+  });
+  if (error) throw error;
+}
+
+/** Corrections to a generated recipe, allowed only while nothing is reserved
+ *  against it and it has never been cooked -- the database enforces both. */
+export async function setIngredientQty(ingredientId: string, qty: number): Promise<void> {
+  const { error } = await supabase.rpc('set_ingredient_qty', { p_ingredient_id: ingredientId, p_qty: qty });
+  if (error) throw error;
+}
+
+export async function removeIngredient(ingredientId: string): Promise<void> {
+  const { error } = await supabase.rpc('remove_ingredient', { p_ingredient_id: ingredientId });
+  if (error) throw error;
+}
+
+export async function addIngredient(recipeId: string, productId: string, qty: number): Promise<void> {
+  const { error } = await supabase.rpc('add_ingredient', {
+    p_recipe_id: recipeId,
+    p_product_id: productId,
+    p_qty: qty,
+  });
+  if (error) throw error;
 }
 
 export async function loadPlan(planId: string): Promise<{
@@ -90,6 +158,34 @@ export async function loadRecipe(recipeId: string): Promise<{
   if (recipeRes.error) throw recipeRes.error;
   if (ingRes.error) throw ingRes.error;
   return { recipe: recipeRes.data as Recipe, ingredients: (ingRes.data ?? []) as RecipeIngredient[] };
+}
+
+/**
+ * One meal with everything the editor needs: the recipe, its ingredients, and
+ * the status of the plan it belongs to -- which is what decides whether any of
+ * it can still be changed.
+ */
+export async function loadMeal(slotId: string): Promise<{
+  meal: ScheduledMeal;
+  plan: MealPlan;
+  ingredients: RecipeIngredient[];
+}> {
+  const { data: slot, error } = await supabase
+    .from('meal_slot')
+    .select('*, recipe:recipe_id (*), plan:plan_id (*)')
+    .eq('id', slotId)
+    .single();
+  if (error) throw error;
+
+  const meal = slot as unknown as ScheduledMeal & { plan: MealPlan };
+  const { data: ingredients, error: ingError } = await supabase
+    .from('recipe_ingredient')
+    .select('*')
+    .eq('recipe_id', meal.recipe_id)
+    .order('position');
+  if (ingError) throw ingError;
+
+  return { meal, plan: meal.plan, ingredients: (ingredients ?? []) as RecipeIngredient[] };
 }
 
 export async function approvePlan(planId: string): Promise<{ shortfall_units: number }> {

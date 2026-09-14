@@ -63,8 +63,21 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   made.
 - **A template is a suggestion, not a copy.** `apply_template` produces a draft
   that is re-checked against the pantry as it is on the day it is applied.
-- **`meal_hour()` in SQL and `MEAL_HOUR` in generate-plan must agree** — both
-  decide when a meal lands on the schedule.
+- **Mealtimes belong to the member, not the code.** `user_profile.meal_times`
+  holds minutes from local midnight; `meal_offset()` reads it in SQL and the
+  client sends it to generate-plan. The defaults in three places —
+  `DEFAULT_MEAL_TIMES` in `src/lib/types.ts`, `DEFAULT_MEAL_MINUTES` in
+  generate-plan, and the column default — must agree.
+- **`tz_offset_minutes` is the household's offset *east* of UTC**, which is the
+  negation of `getTimezoneOffset()`. Local time converts to UTC by *subtracting*
+  it, in SQL and in the Edge Function alike. Adding it instead is what once put
+  a one o'clock lunch at half past five in the morning.
+- **Editing a generated recipe is allowed only while nothing rests on it.**
+  `assert_recipe_editable` refuses once the recipe has been cooked or a plan
+  holding it has left draft — approving reserves stock against those exact
+  quantities. Anything later has to fork through `adapt_recipe`.
+- **Moving a meal is not a stock operation.** `reschedule_slot` touches no
+  reservation, and derives `notify_at` rather than leaving it behind.
 - **Realtime channels get a unique topic** via `uniqueChannelTopic()`, and their
   effect depends only on the id it is keyed to. `supabase.channel(topic)` hands
   back an existing channel for a repeated topic, and adding listeners to an

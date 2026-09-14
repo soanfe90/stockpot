@@ -102,7 +102,8 @@ begin
   select count(*) into slots from meal_slot where plan_id = p.id;
   if slots <> 2 then raise exception 'FAIL: expected 2 slots from the template, got %', slots; end if;
   if (select times_used from plan_template limit 1) <> 1 then raise exception 'FAIL: times_used not incremented'; end if;
-  -- Lunch lands at 13:30 local, as the schedule expects.
+  -- Lunch lands at 13:00 local -- the profile default, since this member
+  -- never changed their mealtimes.
   if (select extract(hour from scheduled_at) from meal_slot
       where plan_id = p.id and category = 'lunch') <> 13
     then raise exception 'FAIL: the meal did not land at its usual hour'; end if;

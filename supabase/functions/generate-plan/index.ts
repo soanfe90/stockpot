@@ -23,12 +23,29 @@ import { activeProvider, generateStructured } from '../_shared/llm.ts';
 const CATEGORIES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 const MAX_ATTEMPTS = 3;
 
-/** When each meal lands, in local hours. */
-const MEAL_HOUR: Record<(typeof CATEGORIES)[number], number> = {
-  breakfast: 8,
-  lunch: 13.5,
-  dinner: 20.5,
-  snack: 17,
+/**
+ * When each meal lands, in minutes from local midnight. These are only the
+ * fallback: the household member's own times come in on the request, and are
+ * the same numbers meal_offset() reads from user_profile.meal_times in SQL.
+ */
+const DEFAULT_MEAL_MINUTES: Record<(typeof CATEGORIES)[number], number> = {
+  breakfast: 8 * 60,
+  lunch: 13 * 60,
+  dinner: 20 * 60,
+  snack: 17 * 60,
+};
+
+type MealMinutes = Partial<Record<(typeof CATEGORIES)[number], number>>;
+
+/** The meal a regeneration stands in for: its plan, its place and its time. */
+type ReplacedSlot = {
+  id: string;
+  plan_id: string;
+  recipe_id: string;
+  category: (typeof CATEGORIES)[number];
+  scheduled_at: string;
+  servings: number;
+  position: number;
 };
 
 const IngredientSchema = z.object({
@@ -99,6 +116,10 @@ Deno.serve(async (req: Request) => {
     starts_on: string;
     prefs?: Record<string, unknown>;
     tz_offset_minutes?: number;
+    meal_times?: MealMinutes;
+    /** Set to swap one meal of an existing draft for a fresh suggestion,
+     *  keeping its plan, its slot in the day, and its time. */
+    replace_slot_id?: string;
   };
   try {
     body = await req.json();
@@ -116,6 +137,25 @@ Deno.serve(async (req: Request) => {
   );
 
   try {
+    // A regeneration replaces one meal of a draft. Approved plans hold
+    // reservations against their recipes, so they are not up for rewriting --
+    // skip or cancel those instead.
+    let replacing: ReplacedSlot | null = null;
+
+    if (body.replace_slot_id) {
+      const { data: slot, error: slotError } = await supabase
+        .from('meal_slot')
+        .select('id, plan_id, recipe_id, category, scheduled_at, servings, position, status, plan:plan_id (status)')
+        .eq('id', body.replace_slot_id)
+        .single();
+      if (slotError || !slot) return fail('That meal no longer exists.', 404);
+      if (slot.status !== 'planned') return fail('That meal is already underway.', 409);
+      if ((slot.plan as unknown as { status: string })?.status !== 'draft') {
+        return fail('This plan is approved and its ingredients are reserved. Skip the meal instead.', 409);
+      }
+      replacing = slot as unknown as ReplacedSlot;
+    }
+
     // Available means unreserved: an approved plan's claim is not up for grabs.
     const [{ data: products }, { data: stock }, { data: history }] = await Promise.all([
       supabase.from('product').select('id, name, category, base_unit, display_unit')
@@ -128,10 +168,36 @@ Deno.serve(async (req: Request) => {
     ]);
 
     const stockById = new Map((stock ?? []).map((s) => [s.product_id, s]));
+
+    // The other meals of a draft hold no reservation, so nothing in
+    // product_stock knows about them. Without subtracting them here, a
+    // regenerated meal would be free to spend the same food twice.
+    const spentElsewhere = new Map<string, number>();
+    if (replacing) {
+      const { data: siblings } = await supabase
+        .from('meal_slot')
+        .select('servings, recipe:recipe_id (servings, recipe_ingredient (product_id, qty))')
+        .eq('plan_id', replacing.plan_id)
+        .neq('id', replacing.id);
+
+      for (const sib of (siblings ?? []) as unknown as {
+        servings: number;
+        recipe: { servings: number; recipe_ingredient: { product_id: string | null; qty: number }[] } | null;
+      }[]) {
+        const per = Math.max(1, sib.recipe?.servings ?? 1);
+        const scale = (sib.servings ?? per) / per;
+        for (const ing of sib.recipe?.recipe_ingredient ?? []) {
+          if (!ing.product_id) continue;
+          spentElsewhere.set(ing.product_id, (spentElsewhere.get(ing.product_id) ?? 0) + Number(ing.qty) * scale);
+        }
+      }
+    }
+
     const pantry = (products ?? [])
       .map((p) => {
         const s = stockById.get(p.id);
-        const available = Number(s?.qty_total ?? 0) - Number(s?.qty_reserved ?? 0);
+        const available =
+          Number(s?.qty_total ?? 0) - Number(s?.qty_reserved ?? 0) - (spentElsewhere.get(p.id) ?? 0);
         return {
           product_id: p.id,
           name: p.name,
@@ -148,8 +214,8 @@ Deno.serve(async (req: Request) => {
       return fail('There is nothing in the pantry to plan with yet. Add or scan some stock first.', 409);
     }
 
-    const days = body.scope === 'week' ? 7 : 1;
-    const wanted = body.scope === 'single' ? 1 : days * 3;
+    const days = replacing ? 1 : body.scope === 'week' ? 7 : 1;
+    const wanted = replacing || body.scope === 'single' ? 1 : days * 3;
 
     let accepted: Slot[] = [];
     let violations: string[] = [];
@@ -172,8 +238,18 @@ Deno.serve(async (req: Request) => {
               ``,
               `Preferences: ${JSON.stringify(body.prefs ?? {})}`,
               ``,
-              `Plan ${wanted} meal${wanted === 1 ? '' : 's'} across ${days} day${days === 1 ? '' : 's'},`,
-              `starting on ${body.starts_on} (day_offset 0).`,
+              replacing
+                ? [
+                    `Suggest exactly one ${replacing.category} for ${body.starts_on} (day_offset 0).`,
+                    `It replaces a meal the household did not want, so make it a genuinely`,
+                    `different dish -- not a variation on the same idea.`,
+                    `The pantry amounts above already exclude what the rest of that day's`,
+                    `meals are spoken for.`,
+                  ].join('\n')
+                : [
+                    `Plan ${wanted} meal${wanted === 1 ? '' : 's'} across ${days} day${days === 1 ? '' : 's'},`,
+                    `starting on ${body.starts_on} (day_offset 0).`,
+                  ].join('\n'),
               violations.length
                 ? `\nYour previous attempt over-allocated the pantry:\n${violations.join('\n')}\nStay inside those amounts.`
                 : '',
@@ -198,24 +274,32 @@ Deno.serve(async (req: Request) => {
     // ---- write the plan --------------------------------------------------
 
     const tz = body.tz_offset_minutes ?? 0;
+    const mealMinutes = body.meal_times ?? {};
     const endOffset = Math.max(...accepted.map((s) => s.day_offset));
     const endsOn = addDays(body.starts_on, endOffset);
 
-    const { data: plan, error: planError } = await supabase
-      .from('meal_plan')
-      .insert({
-        household_id: body.household_id,
-        scope: body.scope,
-        starts_on: body.starts_on,
-        ends_on: endsOn,
-        status: 'draft',
-        prefs: body.prefs ?? {},
-      })
-      .select()
-      .single();
-    if (planError) throw planError;
+    // A regeneration keeps the plan it belongs to; only a fresh plan makes one.
+    let plan: { id: string };
+    if (replacing) {
+      plan = { id: replacing.plan_id };
+    } else {
+      const { data: created, error: planError } = await supabase
+        .from('meal_plan')
+        .insert({
+          household_id: body.household_id,
+          scope: body.scope,
+          starts_on: body.starts_on,
+          ends_on: endsOn,
+          status: 'draft',
+          prefs: body.prefs ?? {},
+        })
+        .select()
+        .single();
+      if (planError) throw planError;
+      plan = created;
+    }
 
-    let position = 0;
+    let position = replacing ? replacing.position : 0;
     for (const slot of accepted) {
       const { data: recipe, error: recipeError } = await supabase
         .from('recipe')
@@ -249,18 +333,32 @@ Deno.serve(async (req: Request) => {
       const { error: ingError } = await supabase.from('recipe_ingredient').insert(ingredients);
       if (ingError) throw ingError;
 
-      const scheduledAt = mealTime(body.starts_on, slot.day_offset, slot.category, tz);
+      // A replacement inherits the time of the meal it stands in for: the
+      // household already decided when they are eating, only what changed.
+      const scheduledAt = replacing
+        ? new Date(replacing.scheduled_at)
+        : mealTime(body.starts_on, slot.day_offset, slot.category, tz, mealMinutes);
       const { error: slotError } = await supabase.from('meal_slot').insert({
         plan_id: plan.id,
         household_id: body.household_id,
         recipe_id: recipe.id,
         scheduled_at: scheduledAt.toISOString(),
-        category: slot.category,
+        category: replacing ? replacing.category : slot.category,
         servings: Math.max(1, Math.round(slot.servings)),
         notify_at: new Date(scheduledAt.getTime() - 30 * 60_000).toISOString(),
         position: position++,
       });
       if (slotError) throw slotError;
+    }
+
+    // The old meal goes only once its replacement is safely written, so a
+    // failure above leaves the plan as it was rather than one meal short.
+    // Deleting the slot first releases the recipe from the plan; the recipe
+    // itself was generated for this slot alone and has nothing to say once it
+    // has been rejected.
+    if (replacing) {
+      await supabase.from('meal_slot').delete().eq('id', replacing.id);
+      await supabase.from('recipe').delete().eq('id', replacing.recipe_id);
     }
 
     return json({
@@ -292,10 +390,24 @@ function addDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Local mealtime, converted to UTC using the offset the client reported. */
-function mealTime(startsOn: string, dayOffset: number, category: keyof typeof MEAL_HOUR, tzOffsetMinutes: number): Date {
-  const hour = MEAL_HOUR[category];
+/**
+ * A local mealtime as a UTC instant.
+ *
+ * tz_offset_minutes is the client's offset *east* of UTC -- Madrid in summer
+ * sends +120, Santiago sends -240 -- so the UTC instant is the local time
+ * minus it. Adding it instead doubled the error in both directions, which is
+ * how a one o'clock lunch came out at half past five in the morning.
+ * apply_template applies it in the same direction in SQL.
+ */
+function mealTime(
+  startsOn: string,
+  dayOffset: number,
+  category: (typeof CATEGORIES)[number],
+  tzOffsetMinutes: number,
+  mealMinutes: MealMinutes
+): Date {
+  const minutes = mealMinutes[category] ?? DEFAULT_MEAL_MINUTES[category];
   const base = new Date(`${addDays(startsOn, dayOffset)}T00:00:00Z`);
-  base.setUTCMinutes(base.getUTCMinutes() + Math.round(hour * 60) + tzOffsetMinutes);
+  base.setUTCMinutes(base.getUTCMinutes() + Math.round(minutes) - tzOffsetMinutes);
   return base;
 }
