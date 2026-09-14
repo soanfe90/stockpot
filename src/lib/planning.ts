@@ -381,11 +381,15 @@ export async function finishCooking(
 
 /** Everything still to cook, soonest first. The schedule is this list. */
 export async function loadSchedule(householdId: string): Promise<ScheduledMeal[]> {
+  // Both statuses matter, and they are not the same thing: a slot can still be
+  // 'planned' inside a plan that has been cancelled, and asking only the slot
+  // is what once kept a deleted plan on the schedule in full.
   const { data, error } = await supabase
     .from('meal_slot')
-    .select('*, recipe:recipe_id (*)')
+    .select('*, recipe:recipe_id (*), plan:plan_id!inner (status)')
     .eq('household_id', householdId)
     .in('status', ['planned', 'cooking'])
+    .in('plan.status', ['draft', 'active'])
     .order('scheduled_at');
   if (error) throw error;
   return (data ?? []) as unknown as ScheduledMeal[];
