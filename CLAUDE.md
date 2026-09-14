@@ -14,7 +14,19 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
 - **Products and lots are different things.** A `product` is the catalog entry;
   an `inventory_lot` is a quantity with a date. Never collapse lots.
 - **The freshness ramp is semantic.** `fresh` / `soon` / `urgent` / `gone` in
-  `src/theme/tokens.ts` mean stock state and nothing else.
+  `src/theme/tokens.ts` mean stock state and nothing else. It owns green, amber,
+  orange and red, which is *why* the brand accent is a berry plum: a brand colour
+  drawn from those hues would be permanently ambiguous with a stock state.
+- **Appearance is a user choice**, not a reading of the system setting. Colours
+  come from `useTokens()`, backed by `ThemeProvider` (light / dark / system,
+  persisted). Never call React Native's `useColorScheme` directly.
+- **Never set `fontWeight`.** Weight is carried by the family — `fonts.medium`,
+  `fonts.semibold`, `fonts.bold` in `src/theme/tokens.ts`. A weight on top of a
+  custom family gives synthetic bold on Android.
+- **Import `Text` from `@/components/ui/text`**, not from react-native, so a
+  screen cannot silently fall back to the system font.
+- **Icons are Ionicons via `@expo/vector-icons`**; app icons are drawn by
+  `scripts/make-icons.py`, so the mark can be changed without a design tool.
 - **Sort by days-to-expiry first**, everywhere. That is the product's whole idea.
 - Every colour is defined for both light and dark in `themes`. A value present in
   only one scheme is a bug.

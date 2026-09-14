@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { StatePill } from '@/components/inventory/product-row';
@@ -9,7 +10,7 @@ import { formatDate, isoDateIn, stockState } from '@/lib/expiry';
 import { errorMessage, supabase } from '@/lib/supabase';
 import { STORAGE_PLACES, type InventoryLot, type Product, type StoragePlace } from '@/lib/types';
 import { formatQty, fromBase, parseQty, toBase } from '@/lib/units';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 export default function ProductScreen() {
@@ -88,8 +89,7 @@ export default function ProductScreen() {
         p_product_id: product.id,
         p_qty: toBase(qty, product.base_unit, product.display_unit),
         p_expires_on: addExpiry,
-        p_storage: addStorage,
-      });
+        p_storage: addStorage });
       if (rpcError) throw rpcError;
       setAddQty('');
       await load();
@@ -114,8 +114,7 @@ export default function ProductScreen() {
     try {
       const { error: rpcError } = await supabase.rpc('set_lot_quantity', {
         p_lot_id: lot.id,
-        p_target: toBase(value, product.base_unit, product.display_unit),
-      });
+        p_target: toBase(value, product.base_unit, product.display_unit) });
       if (rpcError) throw rpcError;
       await load();
     } catch (e) {
@@ -164,8 +163,7 @@ export default function ProductScreen() {
             const { error: deleteError } = await supabase.from('product').delete().eq('id', product.id);
             if (deleteError) setError(errorMessage(deleteError));
             else router.back();
-          },
-        },
+          } },
       ]
     );
   }
@@ -188,7 +186,7 @@ export default function ProductScreen() {
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl, gap: space.xl }}>
         <View style={{ gap: space.sm }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-            <Text style={{ fontSize: 28, fontWeight: '700', letterSpacing: -0.5, color: t.ink, fontVariant: ['tabular-nums'] }}>
+            <Text style={{ fontSize: 28, fontFamily: fonts.bold, letterSpacing: -0.5, color: t.ink, fontVariant: ['tabular-nums'] }}>
               {formatQty(total, product.base_unit, product.display_unit)}
             </Text>
             <StatePill state={state} expiry={nextExpiry} />
@@ -284,8 +282,7 @@ function LotRow({
   product,
   first,
   busy,
-  onCorrect,
-}: {
+  onCorrect }: {
   lot: InventoryLot;
   product: Product;
   first: boolean;
@@ -304,11 +301,10 @@ function LotRow({
         gap: space.md,
         backgroundColor: t.surface,
         borderTopWidth: first ? 0 : StyleSheet.hairlineWidth,
-        borderTopColor: t.line,
-      }}>
+        borderTopColor: t.line }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md }}>
         <View style={{ gap: 3, flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: '600', color: t.ink, fontVariant: ['tabular-nums'] }}>
+          <Text style={{ fontSize: 15, fontFamily: fonts.semibold, color: t.ink, fontVariant: ['tabular-nums'] }}>
             {formatQty(Number(lot.qty), product.base_unit, product.display_unit)}
           </Text>
           <Text style={{ fontSize: 12, color: t.inkFaint }}>
@@ -351,7 +347,7 @@ function LotRow({
             setDraft(String(fromBase(Number(lot.qty), product.base_unit, product.display_unit)));
             setEditing(true);
           }}>
-          <Text style={{ color: t.accentText, fontSize: 13, fontWeight: '600' }}>Correct quantity</Text>
+          <Text style={{ color: t.accentText, fontSize: 13, fontFamily: fonts.semibold }}>Correct quantity</Text>
         </Pressable>
       )}
     </View>

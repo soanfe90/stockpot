@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Chips, EmptyState, ErrorNote, Eyebrow, Loading, Segmented } from '@/components/ui/kit';
@@ -10,12 +11,11 @@ import {
   EMPTY_LIBRARY_FILTERS,
   loadLibrary,
   loadTemplates,
-  type LibraryFilters,
-} from '@/lib/library';
+  type LibraryFilters } from '@/lib/library';
 import { errorMessage } from '@/lib/supabase';
 import { CUISINES, MEAL_CATEGORIES, type LibraryRecipe, type PlanTemplate } from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 type Tab = 'recipes' | 'plans';
@@ -68,7 +68,7 @@ export default function LibraryScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: t.ground }}>
       <View style={{ paddingTop: insets.top + space.md, paddingHorizontal: space.lg, gap: space.md }}>
-        <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.5, color: t.ink }}>Library</Text>
+        <Text style={{ fontSize: 26, fontFamily: fonts.bold, letterSpacing: -0.5, color: t.ink }}>Library</Text>
         <Segmented
           options={[
             { value: 'recipes', label: `Recipes · ${recipes.length}` },
@@ -96,8 +96,7 @@ export default function LibraryScreen() {
                 paddingHorizontal: space.md,
                 paddingVertical: 11,
                 fontSize: 15,
-                color: t.ink,
-              }}
+                color: t.ink }}
             />
             <Pressable
               accessibilityRole="button"
@@ -109,9 +108,8 @@ export default function LibraryScreen() {
                 borderRadius: radius.md,
                 borderWidth: StyleSheet.hairlineWidth * 2,
                 borderColor: activeFilters ? t.accent : t.line,
-                backgroundColor: activeFilters ? t.accentWash : t.surface,
-              }}>
-              <Text style={{ color: activeFilters ? t.accentText : t.inkMuted, fontWeight: '600', fontSize: 14 }}>
+                backgroundColor: activeFilters ? t.accentWash : t.surface }}>
+              <Text style={{ color: activeFilters ? t.accentText : t.inkMuted, fontFamily: fonts.semibold, fontSize: 14 }}>
                 Filter{activeFilters ? ` · ${activeFilters}` : ''}
               </Text>
             </Pressable>
@@ -142,8 +140,7 @@ export default function LibraryScreen() {
               borderWidth: StyleSheet.hairlineWidth * 2,
               borderColor: t.line,
               padding: space.lg,
-              gap: space.lg,
-            }}>
+              gap: space.lg }}>
             <Chips
               label="Show only"
               options={['Favourites', 'Cooked before', 'Rated 4+']}
@@ -157,8 +154,7 @@ export default function LibraryScreen() {
                   ...f,
                   favouritesOnly: values.includes('Favourites'),
                   cookedOnly: values.includes('Cooked before'),
-                  minRating: values.includes('Rated 4+') ? 4 : null,
-                }))
+                  minRating: values.includes('Rated 4+') ? 4 : null }))
               }
             />
             <Chips
@@ -234,14 +230,13 @@ function RecipeCard({ recipe, onPress }: { recipe: LibraryRecipe; onPress: () =>
         borderWidth: StyleSheet.hairlineWidth * 2,
         borderColor: t.line,
         padding: space.lg,
-        gap: 5,
-      })}>
+        gap: 5 })}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.sm }}>
-        <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: t.ink, letterSpacing: -0.2 }}>
+        <Text style={{ flex: 1, fontSize: 16, fontFamily: fonts.bold, color: t.ink, letterSpacing: -0.2 }}>
           {recipe.name}
         </Text>
         {recipe.favourite ? (
-          <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.5, color: t.accentText, textTransform: 'uppercase' }}>
+          <Text style={{ fontSize: 11, fontFamily: fonts.bold, letterSpacing: 0.5, color: t.accentText, textTransform: 'uppercase' }}>
             Favourite
           </Text>
         ) : null}
@@ -275,10 +270,9 @@ function TemplateCard({ template, onApply }: { template: PlanTemplate; onApply: 
         borderWidth: StyleSheet.hairlineWidth * 2,
         borderColor: t.line,
         padding: space.lg,
-        gap: space.md,
-      }}>
+        gap: space.md }}>
       <View style={{ gap: 4 }}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: t.ink }}>{template.name}</Text>
+        <Text style={{ fontSize: 16, fontFamily: fonts.bold, color: t.ink }}>{template.name}</Text>
         <Text style={{ fontSize: 12.5, color: t.inkFaint }}>
           {template.shape.length} meal{template.shape.length === 1 ? '' : 's'} · {template.scope}
           {template.times_used ? ` · used ${template.times_used}×` : ''}

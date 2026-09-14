@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Button, Card, ErrorNote, Eyebrow, Field, Segmented } from '@/components/ui/kit';
@@ -104,8 +105,7 @@ export default function NewProductScreen() {
           default_useful_life_days: life,
           low_threshold: low ? toBase(low, baseUnit, unitKey) : 0,
           storage,
-          notes: notes.trim() || null,
-        })
+          notes: notes.trim() || null })
         .select()
         .single();
 
@@ -121,8 +121,7 @@ export default function NewProductScreen() {
           p_product_id: product.id,
           p_qty: toBase(qty, baseUnit, unitKey),
           p_expires_on: expiry,
-          p_storage: storage,
-        });
+          p_storage: storage });
         if (stockError) throw stockError;
       }
 

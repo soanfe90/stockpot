@@ -1,7 +1,8 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, ErrorNote, Eyebrow, Field, Loading } from '@/components/ui/kit';
@@ -9,7 +10,7 @@ import { finishCooking, loadRecipe, mealLabel, startCooking } from '@/lib/planni
 import { errorMessage, supabase } from '@/lib/supabase';
 import type { CookDeduction, MealSlot, Recipe, RecipeIngredient } from '@/lib/types';
 import { formatQty } from '@/lib/units';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 type Stage = 'cooking' | 'summary' | 'done';
@@ -75,8 +76,7 @@ export default function CookScreen() {
       const result = await finishCooking(id, {
         servings: Math.max(1, Number.parseInt(servings, 10) || 1),
         rating,
-        comment: comment.trim() || null,
-      });
+        comment: comment.trim() || null });
       setDeductions(result.deductions);
       setStage('done');
     } catch (e) {
@@ -107,7 +107,7 @@ export default function CookScreen() {
         contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl, gap: space.xl }}>
         <View style={{ gap: space.sm }}>
           <Eyebrow color={t.fresh}>Finished</Eyebrow>
-          <Text style={{ fontSize: 24, fontWeight: '700', letterSpacing: -0.4, color: t.ink }}>{recipe.name}</Text>
+          <Text style={{ fontSize: 24, fontFamily: fonts.bold, letterSpacing: -0.4, color: t.ink }}>{recipe.name}</Text>
           <Text style={{ fontSize: 13, color: t.inkMuted, lineHeight: 19 }}>
             These amounts have come out of your pantry.
           </Text>
@@ -123,8 +123,7 @@ export default function CookScreen() {
                 padding: space.lg,
                 backgroundColor: t.surface,
                 borderTopWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
-                borderTopColor: t.line,
-              }}>
+                borderTopColor: t.line }}>
               <Text style={{ fontSize: 14.5, color: t.ink }}>{d.name}</Text>
               <Text style={{ fontSize: 14, color: t.inkMuted, fontVariant: ['tabular-nums'] }}>
                 {d.taken} {d.unit}
@@ -158,7 +157,7 @@ export default function CookScreen() {
         keyboardShouldPersistTaps="handled">
         <View style={{ gap: space.sm }}>
           <Eyebrow>How did it go</Eyebrow>
-          <Text style={{ fontSize: 24, fontWeight: '700', letterSpacing: -0.4, color: t.ink }}>{recipe.name}</Text>
+          <Text style={{ fontSize: 24, fontFamily: fonts.bold, letterSpacing: -0.4, color: t.ink }}>{recipe.name}</Text>
         </View>
 
         <ErrorNote message={error} />
@@ -189,9 +188,8 @@ export default function CookScreen() {
                   justifyContent: 'center',
                   borderWidth: StyleSheet.hairlineWidth * 2,
                   borderColor: rating && value <= rating ? t.accent : t.line,
-                  backgroundColor: rating && value <= rating ? t.accentWash : t.surface,
-                }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: rating && value <= rating ? t.accentText : t.inkFaint }}>
+                  backgroundColor: rating && value <= rating ? t.accentWash : t.surface }}>
+                <Text style={{ fontSize: 16, fontFamily: fonts.bold, color: rating && value <= rating ? t.accentText : t.inkFaint }}>
                   {value}
                 </Text>
               </Pressable>
@@ -224,7 +222,7 @@ export default function CookScreen() {
           <Eyebrow color={t.accentText}>
             {mealLabel(slot.scheduled_at)} · {slot.category}
           </Eyebrow>
-          <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.5, color: t.ink }}>{recipe.name}</Text>
+          <Text style={{ fontSize: 26, fontFamily: fonts.bold, letterSpacing: -0.5, color: t.ink }}>{recipe.name}</Text>
           <Text style={{ fontSize: 13, color: t.inkFaint }}>
             {[
               recipe.cuisine,
@@ -252,8 +250,7 @@ export default function CookScreen() {
                   padding: space.lg,
                   backgroundColor: t.surface,
                   borderTopWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
-                  borderTopColor: t.line,
-                }}>
+                  borderTopColor: t.line }}>
                 <Text style={{ fontSize: 14.5, color: t.ink, flex: 1 }}>
                   {ing.name}
                   {ing.optional ? <Text style={{ color: t.inkFaint }}> · optional</Text> : null}
@@ -276,12 +273,11 @@ export default function CookScreen() {
               <Text
                 style={{
                   fontSize: 12,
-                  fontWeight: '700',
+                  fontFamily: fonts.bold,
                   color: t.accentText,
                   fontVariant: ['tabular-nums'],
                   paddingTop: 3,
-                  minWidth: 20,
-                }}>
+                  minWidth: 20 }}>
                 {index + 1}
               </Text>
               <Text style={{ flex: 1, fontSize: 15, lineHeight: 23, color: t.ink }}>{step}</Text>
@@ -315,8 +311,7 @@ export default function CookScreen() {
           paddingBottom: insets.bottom + space.md,
           backgroundColor: t.ground,
           borderTopWidth: StyleSheet.hairlineWidth * 2,
-          borderTopColor: t.line,
-        }}>
+          borderTopColor: t.line }}>
         {slot.status === 'cooking' ? (
           <Button label="Done cooking" onPress={() => setStage('summary')} />
         ) : (

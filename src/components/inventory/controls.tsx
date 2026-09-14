@@ -1,10 +1,11 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 
 import { CATEGORIES } from '@/lib/categories';
 import { SOON_DAYS, URGENT_DAYS } from '@/lib/expiry';
 import type { Filters, StateFilter, StockSummary } from '@/hooks/use-inventory';
 import { Button, Eyebrow } from '@/components/ui/kit';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 const STATE_OPTIONS: { value: StateFilter; label: string }[] = [
@@ -20,8 +21,7 @@ export function SearchBar({
   value,
   onChange,
   onOpenFilters,
-  activeFilterCount,
-}: {
+  activeFilterCount }: {
   value: string;
   onChange: (value: string) => void;
   onOpenFilters: () => void;
@@ -47,8 +47,7 @@ export function SearchBar({
           paddingHorizontal: space.md,
           paddingVertical: 11,
           fontSize: 15,
-          color: t.ink,
-        }}
+          color: t.ink }}
       />
       <Pressable
         accessibilityRole="button"
@@ -60,9 +59,8 @@ export function SearchBar({
           borderRadius: radius.md,
           borderWidth: StyleSheet.hairlineWidth * 2,
           borderColor: activeFilterCount ? t.accent : t.line,
-          backgroundColor: activeFilterCount ? t.accentWash : t.surface,
-        }}>
-        <Text style={{ color: activeFilterCount ? t.accentText : t.inkMuted, fontWeight: '600', fontSize: 14 }}>
+          backgroundColor: activeFilterCount ? t.accentWash : t.surface }}>
+        <Text style={{ color: activeFilterCount ? t.accentText : t.inkMuted, fontFamily: fonts.semibold, fontSize: 14 }}>
           Filter{activeFilterCount ? ` · ${activeFilterCount}` : ''}
         </Text>
       </Pressable>
@@ -76,8 +74,7 @@ export function ActiveFilterChips({
   filters,
   onRemoveCategory,
   onRemoveState,
-  onClear,
-}: {
+  onClear }: {
   filters: Filters;
   onRemoveCategory: (category: string) => void;
   onRemoveState: (state: StateFilter) => void;
@@ -103,7 +100,7 @@ export function ActiveFilterChips({
         />
       ))}
       <Pressable accessibilityRole="button" onPress={onClear} style={{ justifyContent: 'center', paddingHorizontal: space.sm }}>
-        <Text style={{ color: t.accentText, fontSize: 13, fontWeight: '600' }}>Clear all</Text>
+        <Text style={{ color: t.accentText, fontSize: 13, fontFamily: fonts.semibold }}>Clear all</Text>
       </Pressable>
     </ScrollView>
   );
@@ -123,10 +120,9 @@ function Chip({ label, onPress }: { label: string; onPress: () => void }) {
         backgroundColor: t.accentWash,
         borderRadius: radius.sm,
         paddingVertical: 6,
-        paddingHorizontal: space.md,
-      }}>
+        paddingHorizontal: space.md }}>
       <Text style={{ color: t.accentText, fontSize: 13 }}>{label}</Text>
-      <Text style={{ color: t.accentText, fontSize: 14, fontWeight: '700' }}>×</Text>
+      <Text style={{ color: t.accentText, fontSize: 14, fontFamily: fonts.bold }}>×</Text>
     </Pressable>
   );
 }
@@ -139,8 +135,7 @@ export function FilterSheet({
   onChange,
   onClose,
   onCollapseAll,
-  onExpandAll,
-}: {
+  onExpandAll }: {
   visible: boolean;
   filters: Filters;
   onChange: (filters: Filters) => void;
@@ -214,9 +209,8 @@ function Toggle({ label, active, onPress }: { label: string; active: boolean; on
         borderRadius: radius.sm,
         borderWidth: StyleSheet.hairlineWidth * 2,
         borderColor: active ? t.accent : t.line,
-        backgroundColor: active ? t.accentWash : t.surface,
-      }}>
-      <Text style={{ fontSize: 13.5, color: active ? t.accentText : t.inkMuted, fontWeight: active ? '600' : '400' }}>
+        backgroundColor: active ? t.accentWash : t.surface }}>
+      <Text style={{ fontSize: 13.5, color: active ? t.accentText : t.inkMuted, fontFamily: active ? fonts.semibold : fonts.body }}>
         {label}
       </Text>
     </Pressable>
@@ -231,8 +225,7 @@ export function SummarySheet({
   visible,
   summary,
   onClose,
-  onSelect,
-}: {
+  onSelect }: {
   visible: boolean;
   summary: StockSummary;
   onClose: () => void;
@@ -268,10 +261,9 @@ export function SummarySheet({
               paddingHorizontal: space.lg,
               backgroundColor: pressed ? t.surfaceAlt : t.surface,
               borderTopWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
-              borderColor: t.line,
-            })}>
+              borderColor: t.line })}>
             <Text style={{ fontSize: 14.5, color: t.inkMuted }}>{row.label}</Text>
-            <Text style={{ fontSize: 17, fontWeight: '700', color: row.color, fontVariant: ['tabular-nums'] }}>
+            <Text style={{ fontSize: 17, fontFamily: fonts.bold, color: row.color, fontVariant: ['tabular-nums'] }}>
               {row.value}
             </Text>
           </Pressable>
@@ -290,8 +282,7 @@ function Sheet({
   visible,
   onClose,
   title,
-  children,
-}: {
+  children }: {
   visible: boolean;
   onClose: () => void;
   title: string;
@@ -308,19 +299,17 @@ function Sheet({
           borderTopRightRadius: radius.lg,
           paddingTop: space.lg,
           paddingBottom: space.xxl,
-          maxHeight: '82%',
-        }}>
+          maxHeight: '82%' }}>
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
             paddingHorizontal: space.lg,
-            paddingBottom: space.lg,
-          }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: t.ink, letterSpacing: -0.3 }}>{title}</Text>
+            paddingBottom: space.lg }}>
+          <Text style={{ fontSize: 18, fontFamily: fonts.bold, color: t.ink, letterSpacing: -0.3 }}>{title}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={12}>
-            <Text style={{ fontSize: 15, color: t.accentText, fontWeight: '600' }}>Done</Text>
+            <Text style={{ fontSize: 15, color: t.accentText, fontFamily: fonts.semibold }}>Done</Text>
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.lg }}>
@@ -339,8 +328,7 @@ export function AddSheet({
   visible,
   onClose,
   onScan,
-  onManual,
-}: {
+  onManual }: {
   visible: boolean;
   onClose: () => void;
   onScan: () => void;
@@ -374,8 +362,7 @@ function Choice({
   title,
   body,
   onPress,
-  primary,
-}: {
+  primary }: {
   title: string;
   body: string;
   onPress: () => void;
@@ -392,9 +379,8 @@ function Choice({
         borderRadius: radius.md,
         borderWidth: StyleSheet.hairlineWidth * 2,
         borderColor: primary ? t.accent : t.line,
-        backgroundColor: pressed ? t.surfaceAlt : primary ? t.accentWash : t.surface,
-      })}>
-      <Text style={{ fontSize: 15.5, fontWeight: '700', color: primary ? t.accentText : t.ink }}>{title}</Text>
+        backgroundColor: pressed ? t.surfaceAlt : primary ? t.accentWash : t.surface })}>
+      <Text style={{ fontSize: 15.5, fontFamily: fonts.bold, color: primary ? t.accentText : t.ink }}>{title}</Text>
       <Text style={{ fontSize: 13, lineHeight: 19, color: t.inkMuted }}>{body}</Text>
     </Pressable>
   );

@@ -40,3 +40,25 @@ export function categoryRank(category: string): number {
   const index = CATEGORIES.indexOf(category as Category);
   return index === -1 ? CATEGORIES.length : index;
 }
+
+/**
+ * A glyph per category. Products have no photographs, so this is what gives a
+ * long list something to scan by: shape and colour before the name is read.
+ */
+export const CATEGORY_ICONS: Record<Category, string> = {
+  Produce: 'leaf',
+  'Meat & Fish': 'fish',
+  'Dairy & Eggs': 'egg',
+  Bakery: 'pizza',
+  'Grains & Pasta': 'nutrition',
+  'Canned & Jarred': 'file-tray-full',
+  Frozen: 'snow',
+  'Condiments & Spices': 'flask',
+  Snacks: 'ice-cream',
+  Drinks: 'wine',
+  Other: 'cube',
+};
+
+export function categoryIcon(category: string): string {
+  return CATEGORY_ICONS[category as Category] ?? 'cube';
+}

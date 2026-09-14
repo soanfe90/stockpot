@@ -1,19 +1,47 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 
+import { categoryIcon } from '@/lib/categories';
 import { formatDate, stateColors, stateLabel, stockState, type StockState } from '@/lib/expiry';
 import type { StockedProduct } from '@/lib/types';
 import { formatQty } from '@/lib/units';
-import { radius, space } from '@/theme/tokens';
+import { radius, space, type as type_ } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
+
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 export function StatePill({ state, expiry }: { state: StockState; expiry: string | null }) {
   const t = useTokens();
   const { fg, bg } = stateColors(t, state);
   return (
-    <View style={{ backgroundColor: bg, borderRadius: radius.sm, paddingHorizontal: 7, paddingVertical: 3 }}>
-      <Text style={{ color: fg, fontSize: 10.5, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+    <View style={{ backgroundColor: bg, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 4 }}>
+      <Text style={[type_.label, { color: fg, fontSize: 10, letterSpacing: 0.6, textTransform: 'uppercase' }]}>
         {stateLabel(state, expiry)}
       </Text>
+    </View>
+  );
+}
+
+/**
+ * A product has no photograph, so its category glyph stands in -- tinted by
+ * stock state, which means the icon says what it is and the colour says how
+ * urgent it is, in one mark.
+ */
+export function ProductAvatar({ category, state, size = 42 }: { category: string; state: StockState; size?: number }) {
+  const t = useTokens();
+  const { fg, bg } = stateColors(t, state);
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: radius.pill,
+        backgroundColor: bg,
+        alignItems: 'center',
+        justifyContent: 'center' }}>
+      <Ionicons name={categoryIcon(category) as IoniconName} size={size * 0.46} color={fg} />
     </View>
   );
 }
@@ -21,7 +49,6 @@ export function StatePill({ state, expiry }: { state: StockState; expiry: string
 export function ProductRow({ product, onPress }: { product: StockedProduct; onPress: () => void }) {
   const t = useTokens();
   const state = stockState(product.qty_total, product.next_expiry);
-  const { fg } = stateColors(t, state);
 
   return (
     <Pressable
@@ -32,18 +59,16 @@ export function ProductRow({ product, onPress }: { product: StockedProduct; onPr
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.md,
-        paddingVertical: 13,
+        paddingVertical: 12,
         paddingHorizontal: space.lg,
-        backgroundColor: pressed ? t.surfaceAlt : t.surface,
-      })}>
-      {/* A severity stripe puts the state in the row's form, not just its text. */}
-      <View style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, backgroundColor: fg }} />
+        backgroundColor: pressed ? t.surfaceAlt : t.surface })}>
+      <ProductAvatar category={product.category} state={state} />
 
       <View style={{ flex: 1, gap: 3 }}>
-        <Text numberOfLines={1} style={{ fontSize: 15.5, fontWeight: '600', color: t.ink }}>
+        <Text numberOfLines={1} style={[type_.item, { color: t.ink }]}>
           {product.name}
         </Text>
-        <Text style={{ fontSize: 12.5, color: t.inkFaint }}>
+        <Text style={[type_.meta, { color: t.inkFaint }]} numberOfLines={1}>
           {product.next_expiry ? formatDate(product.next_expiry) : 'No date'}
           {product.lot_count > 1 ? ` · ${product.lot_count} lots` : ''}
           {product.qty_reserved > 0
@@ -53,13 +78,7 @@ export function ProductRow({ product, onPress }: { product: StockedProduct; onPr
       </View>
 
       <View style={{ alignItems: 'flex-end', gap: 5 }}>
-        <Text
-          style={{
-            fontSize: 14,
-            fontWeight: '600',
-            color: t.ink,
-            fontVariant: ['tabular-nums'],
-          }}>
+        <Text style={[type_.figure, { color: t.ink }]}>
           {formatQty(product.qty_total, product.base_unit, product.display_unit)}
         </Text>
         <StatePill state={state} expiry={product.next_expiry} />
@@ -72,8 +91,7 @@ export function CategoryHeader({
   category,
   count,
   collapsed,
-  onToggle,
-}: {
+  onToggle }: {
   category: string;
   count: number;
   collapsed: boolean;
@@ -88,20 +106,14 @@ export function CategoryHeader({
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: space.sm,
+        gap: space.sm,
+        paddingVertical: 10,
         paddingHorizontal: space.lg,
-        backgroundColor: t.ground,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderColor: t.line,
-      }}>
-      <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase', color: t.inkFaint }}>
-        {category}
-      </Text>
-      <Text style={{ fontSize: 11, color: t.inkFaint, fontVariant: ['tabular-nums'] }}>
-        {collapsed ? `${count} hidden` : count}
-      </Text>
+        backgroundColor: t.ground }}>
+      <Ionicons name={categoryIcon(category) as IoniconName} size={14} color={t.inkFaint} />
+      <Text style={[type_.label, { textTransform: 'uppercase', color: t.inkFaint, flex: 1 }]}>{category}</Text>
+      <Text style={[type_.meta, { color: t.inkFaint }]}>{collapsed ? `${count} hidden` : count}</Text>
+      <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={14} color={t.inkFaint} />
     </Pressable>
   );
 }

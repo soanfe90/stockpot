@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, EmptyState, ErrorNote, Eyebrow, Loading } from '@/components/ui/kit';
@@ -8,7 +9,7 @@ import { loadSchedule, mealLabel, skipMeal } from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
 import type { ScheduledMeal } from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 export default function PlanScreen() {
@@ -61,7 +62,7 @@ export default function PlanScreen() {
           />
         }>
         <View style={{ paddingTop: insets.top + space.md, paddingHorizontal: space.lg, gap: space.sm }}>
-          <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.5, color: t.ink }}>Meals</Text>
+          <Text style={{ fontSize: 26, fontFamily: fonts.bold, letterSpacing: -0.5, color: t.ink }}>Meals</Text>
           <Text style={{ fontSize: 12, color: t.inkFaint }}>
             {meals.length ? `${meals.length} still to cook` : 'Nothing scheduled'}
           </Text>
@@ -107,12 +108,11 @@ export default function PlanScreen() {
                         gap: 3,
                         backgroundColor: pressed ? t.surfaceAlt : t.surface,
                         borderTopWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
-                        borderTopColor: t.line,
-                      })}>
-                      <Text style={{ fontSize: 11, color: t.inkFaint, fontWeight: '600' }}>
+                        borderTopColor: t.line })}>
+                      <Text style={{ fontSize: 11, color: t.inkFaint, fontFamily: fonts.semibold }}>
                         {mealLabel(meal.scheduled_at)} · {meal.category}
                       </Text>
-                      <Text style={{ fontSize: 15.5, fontWeight: '600', color: t.ink }}>{meal.recipe.name}</Text>
+                      <Text style={{ fontSize: 15.5, fontFamily: fonts.semibold, color: t.ink }}>{meal.recipe.name}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -134,8 +134,7 @@ export default function PlanScreen() {
             paddingBottom: insets.bottom + space.md,
             backgroundColor: t.ground,
             borderTopWidth: StyleSheet.hairlineWidth * 2,
-            borderTopColor: t.line,
-          }}>
+            borderTopColor: t.line }}>
           <Button label="Plan more meals" variant="secondary" onPress={() => router.push('/plan/create')} />
         </View>
       ) : null}
@@ -146,8 +145,7 @@ export default function PlanScreen() {
 function NextMealCard({
   meal,
   onCook,
-  onSkip,
-}: {
+  onSkip }: {
   meal: ScheduledMeal;
   onCook: () => void;
   onSkip: () => void;
@@ -161,13 +159,12 @@ function NextMealCard({
         borderWidth: StyleSheet.hairlineWidth * 2,
         borderColor: t.accent,
         padding: space.lg,
-        gap: space.md,
-      }}>
+        gap: space.md }}>
       <View style={{ gap: 4 }}>
-        <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', color: t.accentText }}>
+        <Text style={{ fontSize: 11, fontFamily: fonts.bold, letterSpacing: 0.8, textTransform: 'uppercase', color: t.accentText }}>
           {mealLabel(meal.scheduled_at)} · {meal.category}
         </Text>
-        <Text style={{ fontSize: 21, fontWeight: '700', letterSpacing: -0.3, color: t.ink }}>{meal.recipe.name}</Text>
+        <Text style={{ fontSize: 21, fontFamily: fonts.bold, letterSpacing: -0.3, color: t.ink }}>{meal.recipe.name}</Text>
         <Text style={{ fontSize: 12.5, color: t.inkFaint }}>
           {[
             meal.recipe.cuisine,

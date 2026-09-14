@@ -2,7 +2,8 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Button, ErrorNote, Segmented, Title } from '@/components/ui/kit';
@@ -10,7 +11,7 @@ import { scanPhoto } from '@/lib/capture';
 import { errorMessage } from '@/lib/supabase';
 import type { CaptureKind } from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 export default function CameraScreen() {
@@ -64,8 +65,7 @@ export default function CameraScreen() {
           backgroundColor: t.ground,
           justifyContent: 'center',
           padding: space.xl,
-          gap: space.lg,
-        }}>
+          gap: space.lg }}>
         <Title>Camera access</Title>
         <Body>
           Stockpot needs the camera to read receipts and groceries. Photos are uploaded to your household&apos;s
@@ -119,8 +119,7 @@ export default function CameraScreen() {
           paddingHorizontal: space.lg,
           alignItems: 'center',
           gap: space.lg,
-          backgroundColor: '#0009',
-        }}>
+          backgroundColor: '#0009' }}>
         {busy ? (
           <View style={{ alignItems: 'center', gap: space.md, paddingVertical: space.md }}>
             <ActivityIndicator color="#fff" />
@@ -142,15 +141,14 @@ export default function CameraScreen() {
                 backgroundColor: '#fff',
                 borderWidth: 4,
                 borderColor: '#fff6',
-                opacity: pressed ? 0.7 : 1,
-              })}
+                opacity: pressed ? 0.7 : 1 })}
             />
             <View style={{ flexDirection: 'row', gap: space.lg }}>
               <Pressable accessibilityRole="button" onPress={() => void pick()} hitSlop={10}>
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Choose photo</Text>
+                <Text style={{ color: '#fff', fontSize: 14, fontFamily: fonts.semibold }}>Choose photo</Text>
               </Pressable>
               <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
-                <Text style={{ color: '#fff9', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
+                <Text style={{ color: '#fff9', fontSize: 14, fontFamily: fonts.semibold }}>Cancel</Text>
               </Pressable>
             </View>
           </>

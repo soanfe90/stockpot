@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, ErrorNote, Eyebrow, Loading } from '@/components/ui/kit';
@@ -11,7 +12,7 @@ import { errorMessage } from '@/lib/supabase';
 import type { MealPlan, PlanShortfall, ScheduledMeal } from '@/lib/types';
 import { formatQty } from '@/lib/units';
 import { useHousehold } from '@/providers/household-provider';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 export default function ReviewPlanScreen() {
@@ -102,8 +103,7 @@ export default function ReviewPlanScreen() {
           } catch (e) {
             setError(errorMessage(e));
           }
-        },
-      },
+        } },
     ]);
   }
 
@@ -121,8 +121,7 @@ export default function ReviewPlanScreen() {
           } catch (e) {
             setError(errorMessage(e));
           }
-        },
-      },
+        } },
     ]);
   }
 
@@ -143,7 +142,7 @@ export default function ReviewPlanScreen() {
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + 120, gap: space.xl }}>
         <View style={{ gap: space.sm }}>
           <Eyebrow>{approved ? 'Approved plan' : 'Review before approving'}</Eyebrow>
-          <Text style={{ fontSize: 24, fontWeight: '700', letterSpacing: -0.4, color: t.ink }}>
+          <Text style={{ fontSize: 24, fontFamily: fonts.bold, letterSpacing: -0.4, color: t.ink }}>
             {meals.length} meal{meals.length === 1 ? '' : 's'}
           </Text>
           <Text style={{ fontSize: 13, color: t.inkMuted, lineHeight: 19 }}>
@@ -184,12 +183,11 @@ export default function ReviewPlanScreen() {
                     gap: 4,
                     backgroundColor: t.surface,
                     borderTopWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
-                    borderTopColor: t.line,
-                  }}>
-                  <Text style={{ fontSize: 10.5, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', color: t.accentText }}>
+                    borderTopColor: t.line }}>
+                  <Text style={{ fontSize: 10.5, fontFamily: fonts.bold, letterSpacing: 0.8, textTransform: 'uppercase', color: t.accentText }}>
                     {meal.category} · {mealLabel(meal.scheduled_at).split(' ').slice(-1)[0]}
                   </Text>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: t.ink }}>{meal.recipe.name}</Text>
+                  <Text style={{ fontSize: 16, fontFamily: fonts.semibold, color: t.ink }}>{meal.recipe.name}</Text>
                   <Text style={{ fontSize: 12.5, color: t.inkFaint }}>
                     {[
                       meal.recipe.cuisine,
@@ -219,8 +217,7 @@ export default function ReviewPlanScreen() {
           paddingBottom: insets.bottom + space.md,
           backgroundColor: t.ground,
           borderTopWidth: StyleSheet.hairlineWidth * 2,
-          borderTopColor: t.line,
-        }}>
+          borderTopColor: t.line }}>
         {approved ? (
           <Button label="Save as a reusable plan" variant="secondary" onPress={saveAsTemplate} />
         ) : (
@@ -240,8 +237,7 @@ function groupByDay(meals: ScheduledMeal[]): [string, ScheduledMeal[]][] {
     const key = new Date(meal.scheduled_at).toLocaleDateString(undefined, {
       weekday: 'long',
       day: 'numeric',
-      month: 'short',
-    });
+      month: 'short' });
     groups.set(key, [...(groups.get(key) ?? []), meal]);
   }
   return [...groups.entries()];

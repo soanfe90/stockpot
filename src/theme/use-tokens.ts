@@ -1,12 +1,7 @@
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-import { themes, type Tokens } from './tokens';
-
-/** Reads the viewer's scheme through the hydration-safe hook, so a statically
- *  rendered web page does not flash the wrong palette. */
-export function useTokens(): Tokens {
-  const scheme = useColorScheme();
-  return themes[scheme === 'dark' ? 'dark' : 'light'];
-}
-
-export type { Tokens };
+/**
+ * Kept as the import path the app already uses everywhere. The implementation
+ * lives with the provider, because the active scheme is now a user choice and
+ * not just a reading of the system setting.
+ */
+export { useThemeMode, useTokens } from './theme-provider';
+export type { Tokens } from './tokens';

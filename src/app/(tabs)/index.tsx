@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, SectionList, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -18,12 +19,11 @@ import {
   useInventory,
   useStockSummary,
   type Filters,
-  type StateFilter,
-} from '@/hooks/use-inventory';
+  type StateFilter } from '@/hooks/use-inventory';
 import { categoryRank } from '@/lib/categories';
 import type { StockedProduct } from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 export default function InventoryScreen() {
@@ -56,8 +56,7 @@ export default function InventoryScreen() {
       .map(([title, data]) => ({
         title,
         count: data.length,
-        data: collapsed.includes(title) ? [] : data,
-      }));
+        data: collapsed.includes(title) ? [] : data }));
   }, [visible, collapsed]);
 
   const activeFilterCount = filters.categories.length + filters.states.length;
@@ -79,10 +78,9 @@ export default function InventoryScreen() {
             alignItems: 'flex-end',
             justifyContent: 'space-between',
             paddingHorizontal: space.lg,
-            paddingBottom: space.md,
-          }}>
+            paddingBottom: space.md }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.5, color: t.ink }} numberOfLines={1}>
+            <Text style={{ fontSize: 26, fontFamily: fonts.bold, letterSpacing: -0.5, color: t.ink }} numberOfLines={1}>
               {household?.name ?? 'Inventory'}
             </Text>
             <Text style={{ fontSize: 12, color: t.inkFaint, marginTop: 2 }}>
@@ -94,7 +92,7 @@ export default function InventoryScreen() {
             accessibilityLabel="Preferences"
             onPress={() => router.push('/preferences')}
             hitSlop={10}>
-            <Text style={{ color: t.accentText, fontSize: 13, fontWeight: '600' }}>Preferences</Text>
+            <Text style={{ color: t.accentText, fontSize: 13, fontFamily: fonts.semibold }}>Preferences</Text>
           </Pressable>
         </View>
 
@@ -175,8 +173,7 @@ export default function InventoryScreen() {
           paddingBottom: insets.bottom + space.md,
           backgroundColor: t.ground,
           borderTopWidth: StyleSheet.hairlineWidth * 2,
-          borderTopColor: t.line,
-        }}>
+          borderTopColor: t.line }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Stock summary"
@@ -188,9 +185,8 @@ export default function InventoryScreen() {
             borderRadius: radius.md,
             borderWidth: StyleSheet.hairlineWidth * 2,
             borderColor: t.lineStrong,
-            backgroundColor: t.surface,
-          }}>
-          <Text style={{ color: t.inkMuted, fontSize: 17, fontWeight: '700' }}>i</Text>
+            backgroundColor: t.surface }}>
+          <Text style={{ color: t.inkMuted, fontSize: 17, fontFamily: fonts.bold }}>i</Text>
         </Pressable>
         <Button label="Add products" onPress={() => setShowAdd(true)} style={{ flex: 1 }} />
       </View>

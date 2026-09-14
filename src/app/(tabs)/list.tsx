@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, RefreshControl, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, RefreshControl, SectionList, StyleSheet, TextInput, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, EmptyState, ErrorNote, Loading } from '@/components/ui/kit';
@@ -9,7 +10,7 @@ import { formatDate } from '@/lib/expiry';
 import { SOURCE_LABELS, type ItemSource, type ShoppingItem } from '@/lib/types';
 import { formatQty, parseQty } from '@/lib/units';
 import { useHousehold } from '@/providers/household-provider';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 export default function ShoppingScreen() {
@@ -47,13 +48,13 @@ export default function ShoppingScreen() {
       <View style={{ paddingTop: insets.top + space.md, paddingHorizontal: space.lg, gap: space.md }}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.5, color: t.ink }}>Shopping</Text>
+            <Text style={{ fontSize: 26, fontFamily: fonts.bold, letterSpacing: -0.5, color: t.ink }}>Shopping</Text>
             <Text style={{ fontSize: 12, color: t.inkFaint, marginTop: 2 }}>
               {remaining} to get{checked.length ? ` · ${checked.length} in the basket` : ''}
             </Text>
           </View>
           <Pressable accessibilityRole="button" onPress={() => router.push('/shopping/history')} hitSlop={10}>
-            <Text style={{ color: t.accentText, fontSize: 13, fontWeight: '600' }}>Past trips</Text>
+            <Text style={{ color: t.accentText, fontSize: 13, fontFamily: fonts.semibold }}>Past trips</Text>
           </Pressable>
         </View>
 
@@ -75,8 +76,7 @@ export default function ShoppingScreen() {
               paddingHorizontal: space.md,
               paddingVertical: 11,
               fontSize: 15,
-              color: t.ink,
-            }}
+              color: t.ink }}
           />
           <Button label="Add" variant="secondary" onPress={submitDraft} />
         </View>
@@ -99,7 +99,7 @@ export default function ShoppingScreen() {
           <Text
             style={{
               fontSize: 11,
-              fontWeight: '700',
+              fontFamily: fonts.bold,
               letterSpacing: 1.1,
               textTransform: 'uppercase',
               color: t.inkFaint,
@@ -108,8 +108,7 @@ export default function ShoppingScreen() {
               paddingVertical: space.sm,
               borderTopWidth: StyleSheet.hairlineWidth,
               borderBottomWidth: StyleSheet.hairlineWidth,
-              borderColor: t.line,
-            }}>
+              borderColor: t.line }}>
             {section.title}
           </Text>
         )}
@@ -137,8 +136,7 @@ export default function ShoppingScreen() {
             paddingBottom: insets.bottom + space.md,
             backgroundColor: t.ground,
             borderTopWidth: StyleSheet.hairlineWidth * 2,
-            borderTopColor: t.line,
-          }}>
+            borderTopColor: t.line }}>
           <Button
             label={checked.length ? `Finish purchase · ${checked.length}` : 'Tick what you bought'}
             disabled={!checked.length}
@@ -153,8 +151,7 @@ export default function ShoppingScreen() {
 function ItemRow({
   item,
   onToggle,
-  onRemove,
-}: {
+  onRemove }: {
   item: ShoppingItem;
   onToggle: () => void;
   onRemove: () => void;
@@ -176,8 +173,7 @@ function ItemRow({
         paddingVertical: 13,
         paddingHorizontal: space.lg,
         backgroundColor: pressed ? t.surfaceAlt : t.surface,
-        opacity: item.checked ? 0.55 : 1,
-      })}>
+        opacity: item.checked ? 0.55 : 1 })}>
       <View
         style={{
           width: 22,
@@ -187,9 +183,8 @@ function ItemRow({
           borderColor: item.checked ? t.accent : t.lineStrong,
           backgroundColor: item.checked ? t.accent : 'transparent',
           alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-        {item.checked ? <Text style={{ color: t.ground, fontSize: 13, fontWeight: '800' }}>✓</Text> : null}
+          justifyContent: 'center' }}>
+        {item.checked ? <Text style={{ color: t.ground, fontSize: 13, fontFamily: fonts.bold }}>✓</Text> : null}
       </View>
 
       <View style={{ flex: 1, gap: 3 }}>
@@ -197,14 +192,13 @@ function ItemRow({
           numberOfLines={1}
           style={{
             fontSize: 15.5,
-            fontWeight: '600',
+            fontFamily: fonts.semibold,
             color: t.ink,
-            textDecorationLine: item.checked ? 'line-through' : 'none',
-          }}>
+            textDecorationLine: item.checked ? 'line-through' : 'none' }}>
           {item.name}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={{ fontSize: 10.5, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', color: reason }}>
+          <Text style={{ fontSize: 10.5, fontFamily: fonts.bold, letterSpacing: 0.4, textTransform: 'uppercase', color: reason }}>
             {SOURCE_LABELS[item.source]}
           </Text>
           {item.needed_by ? (
@@ -213,7 +207,7 @@ function ItemRow({
         </View>
       </View>
 
-      <Text style={{ fontSize: 14, fontWeight: '600', color: t.inkMuted, fontVariant: ['tabular-nums'] }}>
+      <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: t.inkMuted, fontVariant: ['tabular-nums'] }}>
         {formatQty(item.qty, item.base_unit, item.display_unit)}
       </Text>
     </Pressable>

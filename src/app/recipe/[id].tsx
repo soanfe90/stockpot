@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, ErrorNote, Eyebrow, Loading } from '@/components/ui/kit';
@@ -9,7 +10,7 @@ import { loadRecipe } from '@/lib/planning';
 import { errorMessage, supabase } from '@/lib/supabase';
 import type { Recipe, RecipeIngredient, RecipeStats } from '@/lib/types';
 import { formatQty } from '@/lib/units';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 export default function RecipeScreen() {
@@ -59,8 +60,7 @@ export default function RecipeScreen() {
           } catch (e) {
             setError(errorMessage(e));
           }
-        },
-      })),
+        } })),
       { text: 'Cancel', style: 'cancel' as const },
     ]);
   }
@@ -102,7 +102,7 @@ export default function RecipeScreen() {
       style={{ flex: 1, backgroundColor: t.ground }}
       contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl, gap: space.xl }}>
       <View style={{ gap: space.sm }}>
-        <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.5, color: t.ink }}>{recipe.name}</Text>
+        <Text style={{ fontSize: 26, fontFamily: fonts.bold, letterSpacing: -0.5, color: t.ink }}>{recipe.name}</Text>
         <Text style={{ fontSize: 13, color: t.inkFaint }}>
           {[
             recipe.category,
@@ -119,7 +119,7 @@ export default function RecipeScreen() {
         ) : null}
         {recipe.parent_recipe_id ? (
           <Pressable accessibilityRole="button" onPress={() => router.push(`/recipe/${recipe.parent_recipe_id}`)}>
-            <Text style={{ fontSize: 12.5, color: t.accentText, fontWeight: '600' }}>
+            <Text style={{ fontSize: 12.5, color: t.accentText, fontFamily: fonts.semibold }}>
               Adapted from an earlier version →
             </Text>
           </Pressable>
@@ -153,8 +153,7 @@ export default function RecipeScreen() {
                 padding: space.lg,
                 backgroundColor: t.surface,
                 borderTopWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
-                borderTopColor: t.line,
-              }}>
+                borderTopColor: t.line }}>
               <Text style={{ fontSize: 14.5, color: t.ink, flex: 1 }}>
                 {ing.name}
                 {ing.optional ? <Text style={{ color: t.inkFaint }}> · optional</Text> : null}
@@ -171,7 +170,7 @@ export default function RecipeScreen() {
         <Eyebrow>Method</Eyebrow>
         {recipe.steps.map((step, index) => (
           <View key={index} style={{ flexDirection: 'row', gap: space.md }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: t.accentText, minWidth: 20, paddingTop: 3, fontVariant: ['tabular-nums'] }}>
+            <Text style={{ fontSize: 12, fontFamily: fonts.bold, color: t.accentText, minWidth: 20, paddingTop: 3, fontVariant: ['tabular-nums'] }}>
               {index + 1}
             </Text>
             <Text style={{ flex: 1, fontSize: 15, lineHeight: 23, color: t.ink }}>{step}</Text>

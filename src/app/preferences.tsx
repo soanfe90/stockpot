@@ -1,14 +1,16 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Body, Button, Card, Chips, ErrorNote, Title } from '@/components/ui/kit';
+import { Body, Button, Card, Chips, Eyebrow, ErrorNote, Segmented, Title } from '@/components/ui/kit';
 import { errorMessage } from '@/lib/supabase';
 import { CUISINES, DIET_TYPES, GOALS } from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
 import { space } from '@/theme/tokens';
-import { useTokens } from '@/theme/use-tokens';
+import { useThemeMode, useTokens } from '@/theme/use-tokens';
+import type { ThemeMode } from '@/theme/theme-provider';
 
 /**
  * Asked once at signup and editable forever after. These three answers steer
@@ -20,6 +22,7 @@ export default function PreferencesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, savePreferences } = useHousehold();
+  const { mode, setMode } = useThemeMode();
 
   const first = !profile?.onboarded_at;
   const [diets, setDiets] = useState<string[]>(profile?.diet_types ?? []);
@@ -48,8 +51,7 @@ export default function PreferencesScreen() {
         padding: space.lg,
         paddingTop: first ? insets.top + space.xxl : space.lg,
         paddingBottom: insets.bottom + space.xxl,
-        gap: space.xl,
-      }}
+        gap: space.xl }}
       keyboardShouldPersistTaps="handled">
       <View style={{ gap: space.md }}>
         <Title>{first ? 'How do you eat?' : 'Your preferences'}</Title>
@@ -58,6 +60,24 @@ export default function PreferencesScreen() {
           without touching what is saved here.
         </Body>
       </View>
+
+      <Card>
+        <View style={{ gap: space.md }}>
+          <Eyebrow>Appearance</Eyebrow>
+          <Segmented
+            options={[
+              { value: 'light', label: 'Light', icon: 'sunny-outline' },
+              { value: 'dark', label: 'Dark', icon: 'moon-outline' },
+              { value: 'system', label: 'System', icon: 'phone-portrait-outline' },
+            ]}
+            value={mode}
+            onChange={(next: ThemeMode) => setMode(next)}
+          />
+          <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
+            Applies straight away and stays on this device. System follows whatever your phone is set to.
+          </Text>
+        </View>
+      </Card>
 
       <Card>
         <View style={{ gap: space.xl }}>

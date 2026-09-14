@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, ErrorNote, Eyebrow, Field, Loading } from '@/components/ui/kit';
@@ -9,7 +10,7 @@ import { errorMessage } from '@/lib/supabase';
 import type { ShoppingItem } from '@/lib/types';
 import { fromBase, parseQty, toBase } from '@/lib/units';
 import { useHousehold } from '@/providers/household-provider';
-import { space } from '@/theme/tokens';
+import { fonts, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 export default function ReviewPurchaseScreen() {
@@ -61,7 +62,7 @@ export default function ReviewPurchaseScreen() {
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl, gap: space.xl }}>
         <View style={{ gap: space.sm }}>
           <Eyebrow>Before this reaches the pantry</Eyebrow>
-          <Text style={{ fontSize: 24, fontWeight: '700', letterSpacing: -0.4, color: t.ink }}>
+          <Text style={{ fontSize: 24, fontFamily: fonts.bold, letterSpacing: -0.4, color: t.ink }}>
             {checked.length} item{checked.length === 1 ? '' : 's'} bought
           </Text>
           <Text style={{ fontSize: 13, color: t.inkMuted, lineHeight: 19 }}>
@@ -112,8 +113,7 @@ export default function ReviewPurchaseScreen() {
 function PurchasedRow({
   item,
   first,
-  onChange,
-}: {
+  onChange }: {
   item: ShoppingItem;
   first: boolean;
   onChange: (qty: number) => void;
@@ -131,10 +131,9 @@ function PurchasedRow({
         padding: space.lg,
         backgroundColor: t.surface,
         borderTopWidth: first ? 0 : StyleSheet.hairlineWidth,
-        borderTopColor: t.line,
-      }}>
+        borderTopColor: t.line }}>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 15, fontWeight: '600', color: t.ink }}>{item.name}</Text>
+        <Text style={{ fontSize: 15, fontFamily: fonts.semibold, color: t.ink }}>{item.name}</Text>
         <Text style={{ fontSize: 12, color: t.inkFaint, marginTop: 2 }}>{item.category}</Text>
       </View>
       <View style={{ width: 120 }}>

@@ -1,43 +1,68 @@
+import {
+  Figtree_400Regular,
+  Figtree_500Medium,
+  Figtree_600SemiBold,
+  Figtree_700Bold,
+} from '@expo-google-fonts/figtree';
+import { Fraunces_600SemiBold, Fraunces_700Bold } from '@expo-google-fonts/fraunces';
+import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Loading } from '@/components/ui/kit';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { HouseholdProvider, useHousehold } from '@/providers/household-provider';
 import { SessionProvider, useSession } from '@/providers/session-provider';
-import { themes } from '@/theme/tokens';
+import { ThemeProvider } from '@/theme/theme-provider';
+import { fonts } from '@/theme/tokens';
+import { useThemeMode, useTokens } from '@/theme/use-tokens';
 
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <SessionProvider>
-        <HouseholdProvider>
-          <RootNavigator />
-        </HouseholdProvider>
-      </SessionProvider>
+      <ThemeProvider>
+        <SessionProvider>
+          <HouseholdProvider>
+            <RootNavigator />
+          </HouseholdProvider>
+        </SessionProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
 
 /**
- * Four gates, in order: signed in, in a household, asked about preferences,
- * then the app. Everything downstream can assume all of them, which is why no
- * other screen checks for a null session.
+ * Four gates, in order: fonts and data ready, signed in, in a household, asked
+ * about preferences, then the app. Everything downstream can assume all of
+ * them, which is why no other screen checks for a null session.
  */
 function RootNavigator() {
-  const scheme = useColorScheme();
-  const t = themes[scheme === 'dark' ? 'dark' : 'light'];
+  const t = useTokens();
+  const { scheme } = useThemeMode();
   const { session, loading: sessionLoading } = useSession();
   const { household, profile, loading: householdLoading } = useHousehold();
   const segments = useSegments();
   const router = useRouter();
 
-  const ready = !sessionLoading && !householdLoading;
+  // Text rendered before the faces arrive falls back to the system font and
+  // then reflows, so the splash holds until they are in.
+  const [fontsLoaded, fontError] = useFonts({
+    Fraunces_600SemiBold,
+    Fraunces_700Bold,
+    Figtree_400Regular,
+    Figtree_500Medium,
+    Figtree_600SemiBold,
+    Figtree_700Bold,
+  });
+
+  // A font that fails to load is not worth blocking the app over; the system
+  // face is a worse look, not a broken one.
+  const typeReady = fontsLoaded || !!fontError;
+  const ready = typeReady && !sessionLoading && !householdLoading;
 
   useEffect(() => {
     if (ready) void SplashScreen.hideAsync();
@@ -66,58 +91,31 @@ function RootNavigator() {
 
   if (!ready) return <Loading />;
 
+  const header = {
+    headerStyle: { backgroundColor: t.ground },
+    headerTintColor: t.accentText,
+    headerTitleStyle: { fontFamily: fonts.display, fontSize: 17, color: t.ink },
+    headerShadowVisible: false,
+  } as const;
+
   return (
     <>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: t.ground },
-        }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.ground } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="household" />
-        <Stack.Screen
-          name="preferences"
-          options={{ headerShown: true, title: 'Preferences', headerBackTitle: 'Back' }}
-        />
-        <Stack.Screen
-          name="product/new"
-          options={{ presentation: 'modal', headerShown: true, title: 'Add product' }}
-        />
-        <Stack.Screen name="product/[id]" options={{ headerShown: true, title: 'Product' }} />
-        <Stack.Screen
-          name="capture/camera"
-          options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="capture/[id]"
-          options={{ headerShown: true, title: 'Review scan', headerBackTitle: 'Back' }}
-        />
-        <Stack.Screen
-          name="shopping/review"
-          options={{ headerShown: true, title: 'Finish purchase', headerBackTitle: 'List' }}
-        />
-        <Stack.Screen
-          name="shopping/history"
-          options={{ headerShown: true, title: 'Past trips', headerBackTitle: 'List' }}
-        />
-        <Stack.Screen
-          name="plan/create"
-          options={{ presentation: 'modal', headerShown: true, title: 'New plan' }}
-        />
-        <Stack.Screen
-          name="plan/[id]"
-          options={{ headerShown: true, title: 'Review plan', headerBackTitle: 'Meals' }}
-        />
-        <Stack.Screen
-          name="cook/[id]"
-          options={{ headerShown: true, title: 'Cooking', headerBackTitle: 'Meals' }}
-        />
-        <Stack.Screen
-          name="recipe/[id]"
-          options={{ headerShown: true, title: 'Recipe', headerBackTitle: 'Library' }}
-        />
+        <Stack.Screen name="preferences" options={{ ...header, headerShown: true, title: 'Preferences' }} />
+        <Stack.Screen name="product/new" options={{ ...header, presentation: 'modal', headerShown: true, title: 'Add product' }} />
+        <Stack.Screen name="product/[id]" options={{ ...header, headerShown: true, title: 'Product' }} />
+        <Stack.Screen name="capture/camera" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="capture/[id]" options={{ ...header, headerShown: true, title: 'Review scan' }} />
+        <Stack.Screen name="shopping/review" options={{ ...header, headerShown: true, title: 'Finish purchase' }} />
+        <Stack.Screen name="shopping/history" options={{ ...header, headerShown: true, title: 'Past trips' }} />
+        <Stack.Screen name="plan/create" options={{ ...header, presentation: 'modal', headerShown: true, title: 'New plan' }} />
+        <Stack.Screen name="plan/[id]" options={{ ...header, headerShown: true, title: 'Review plan' }} />
+        <Stack.Screen name="cook/[id]" options={{ ...header, headerShown: true, title: 'Cooking' }} />
+        <Stack.Screen name="recipe/[id]" options={{ ...header, headerShown: true, title: 'Recipe' }} />
       </Stack>
     </>
   );

@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DraftRow } from '@/components/inventory/draft-row';
@@ -10,7 +11,7 @@ import { formatDate } from '@/lib/expiry';
 import { errorMessage, supabase } from '@/lib/supabase';
 import type { Capture, DraftLine, StockedProduct } from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
-import { space } from '@/theme/tokens';
+import { fonts, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 export default function DraftTrayScreen() {
@@ -134,7 +135,7 @@ export default function DraftTrayScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}>
         <View style={{ padding: space.lg, gap: space.sm }}>
           <Eyebrow>Review before adding</Eyebrow>
-          <Text style={{ fontSize: 24, fontWeight: '700', letterSpacing: -0.4, color: t.ink }}>
+          <Text style={{ fontSize: 24, fontFamily: fonts.bold, letterSpacing: -0.4, color: t.ink }}>
             {keeping.length} item{keeping.length === 1 ? '' : 's'} to add
           </Text>
           <Text style={{ fontSize: 13, color: t.inkMuted, lineHeight: 19 }}>
@@ -185,8 +186,7 @@ export default function DraftTrayScreen() {
           paddingBottom: insets.bottom + space.md,
           backgroundColor: t.ground,
           borderTopWidth: StyleSheet.hairlineWidth * 2,
-          borderTopColor: t.line,
-        }}>
+          borderTopColor: t.line }}>
         <Button
           label={keeping.length ? `Add ${keeping.length} to inventory` : 'Nothing to add'}
           onPress={commit}

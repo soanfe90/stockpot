@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EmptyState, ErrorNote, Loading } from '@/components/ui/kit';
@@ -7,7 +8,7 @@ import { errorMessage, supabase } from '@/lib/supabase';
 import type { Purchase } from '@/lib/types';
 import { formatQty } from '@/lib/units';
 import { useHousehold } from '@/providers/household-provider';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 export default function PurchaseHistoryScreen() {
@@ -57,14 +58,13 @@ export default function PurchaseHistoryScreen() {
               borderWidth: StyleSheet.hairlineWidth * 2,
               borderColor: t.line,
               padding: space.lg,
-              gap: space.sm,
-            }}>
+              gap: space.sm }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <Text style={{ fontSize: 15.5, fontWeight: '700', color: t.ink }}>
+              <Text style={{ fontSize: 15.5, fontFamily: fonts.bold, color: t.ink }}>
                 {purchase.store || 'Shopping trip'}
               </Text>
               {purchase.total != null ? (
-                <Text style={{ fontSize: 15, fontWeight: '700', color: t.ink, fontVariant: ['tabular-nums'] }}>
+                <Text style={{ fontSize: 15, fontFamily: fonts.bold, color: t.ink, fontVariant: ['tabular-nums'] }}>
                   {purchase.total.toFixed(2)}
                 </Text>
               ) : null}
@@ -74,8 +74,7 @@ export default function PurchaseHistoryScreen() {
                 weekday: 'short',
                 day: 'numeric',
                 month: 'short',
-                year: 'numeric',
-              })}
+                year: 'numeric' })}
               {' · '}
               {purchase.items.length} item{purchase.items.length === 1 ? '' : 's'}
             </Text>

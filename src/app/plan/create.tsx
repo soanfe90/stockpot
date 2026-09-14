@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Button, Card, Chips, ErrorNote, Field, Segmented, Title } from '@/components/ui/kit';
@@ -35,8 +36,7 @@ export default function CreatePlanScreen() {
         diets,
         cuisines,
         goals,
-        servings: Math.max(1, Number.parseInt(servings, 10) || 2),
-      });
+        servings: Math.max(1, Number.parseInt(servings, 10) || 2) });
       router.replace(`/plan/${result.plan_id}`);
     } catch (e) {
       setError(errorMessage(e));

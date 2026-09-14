@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Button, ErrorNote, Field, Title } from '@/components/ui/kit';
@@ -65,8 +66,7 @@ export default function SignInScreen() {
           paddingHorizontal: space.xl,
           paddingTop: insets.top + space.xxl,
           paddingBottom: insets.bottom + space.xxl,
-          gap: space.xl,
-        }}
+          gap: space.xl }}
         keyboardShouldPersistTaps="handled">
         <View style={{ gap: space.md }}>
           <Title>Stockpot</Title>

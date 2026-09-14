@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 
 import { Button, Eyebrow, Field, Segmented } from '@/components/ui/kit';
 import { CATEGORIES } from '@/lib/categories';
 import { confidenceLabel } from '@/lib/capture';
 import type { DraftLine, LineResolution, StockedProduct } from '@/lib/types';
 import { DISPLAY_UNITS, parseQty, type BaseUnit } from '@/lib/units';
-import { radius, space } from '@/theme/tokens';
+import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
 /**
@@ -30,12 +31,11 @@ function ConfidenceMeter({ confidence }: { confidence: number | null }) {
               width: 3,
               height: 6 + i * 3,
               borderRadius: 1,
-              backgroundColor: i < filled ? t.accentText : t.lineStrong,
-            }}
+              backgroundColor: i < filled ? t.accentText : t.lineStrong }}
           />
         ))}
       </View>
-      <Text style={{ fontSize: 11, color: level === 'check' ? t.ink : t.inkFaint, fontWeight: level === 'check' ? '700' : '500' }}>
+      <Text style={{ fontSize: 11, color: level === 'check' ? t.ink : t.inkFaint, fontFamily: level === 'check' ? fonts.bold : fonts.medium }}>
         {label}
       </Text>
     </View>
@@ -48,8 +48,7 @@ export function DraftRow({
   expanded,
   onToggle,
   onChange,
-  onDelete,
-}: {
+  onDelete }: {
   line: DraftLine;
   products: StockedProduct[];
   expanded: boolean;
@@ -74,17 +73,15 @@ export function DraftRow({
           gap: space.md,
           padding: space.lg,
           opacity: skipped ? 0.5 : 1,
-          backgroundColor: pressed ? t.surfaceAlt : 'transparent',
-        })}>
+          backgroundColor: pressed ? t.surfaceAlt : 'transparent' })}>
         <View style={{ flex: 1, gap: 4 }}>
           <Text
             numberOfLines={1}
             style={{
               fontSize: 15.5,
-              fontWeight: '600',
+              fontFamily: fonts.semibold,
               color: t.ink,
-              textDecorationLine: skipped ? 'line-through' : 'none',
-            }}>
+              textDecorationLine: skipped ? 'line-through' : 'none' }}>
             {line.name}
           </Text>
           {line.raw_text ? (
@@ -104,7 +101,7 @@ export function DraftRow({
         </View>
 
         <View style={{ alignItems: 'flex-end', gap: 5 }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: t.ink, fontVariant: ['tabular-nums'] }}>
+          <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: t.ink, fontVariant: ['tabular-nums'] }}>
             {line.qty} {line.display_unit}
           </Text>
           {!skipped ? <ConfidenceMeter confidence={line.confidence} /> : null}
@@ -166,7 +163,7 @@ export function DraftRow({
             />
             {line.resolution === 'merge' ? (
               <Pressable accessibilityRole="button" onPress={() => setPicking(true)}>
-                <Text style={{ color: t.accentText, fontSize: 13, fontWeight: '600', paddingTop: 4 }}>
+                <Text style={{ color: t.accentText, fontSize: 13, fontFamily: fonts.semibold, paddingTop: 4 }}>
                   {matched ? `Change from ${matched.name}` : 'Choose a product'}
                 </Text>
               </Pressable>
@@ -187,8 +184,7 @@ export function DraftRow({
             matched_product_id: product.id,
             display_unit: product.display_unit,
             base_unit: product.base_unit,
-            category: product.category,
-          });
+            category: product.category });
           setPicking(false);
         }}
       />
@@ -200,8 +196,7 @@ function ProductPicker({
   visible,
   products,
   onClose,
-  onSelect,
-}: {
+  onSelect }: {
   visible: boolean;
   products: StockedProduct[];
   onClose: () => void;
@@ -222,10 +217,9 @@ function ProductPicker({
           borderTopRightRadius: radius.lg,
           paddingTop: space.lg,
           paddingBottom: space.xxl,
-          maxHeight: '80%',
-        }}>
+          maxHeight: '80%' }}>
         <View style={{ paddingHorizontal: space.lg, gap: space.md, paddingBottom: space.md }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: t.ink }}>Add to which product?</Text>
+          <Text style={{ fontSize: 18, fontFamily: fonts.bold, color: t.ink }}>Add to which product?</Text>
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -240,8 +234,7 @@ function ProductPicker({
               paddingHorizontal: space.md,
               paddingVertical: 11,
               fontSize: 15,
-              color: t.ink,
-            }}
+              color: t.ink }}
           />
         </View>
         <ScrollView contentContainerStyle={{ paddingBottom: space.lg }}>
@@ -260,9 +253,8 @@ function ProductPicker({
                   paddingHorizontal: space.lg,
                   backgroundColor: pressed ? t.surfaceAlt : t.surface,
                   borderTopWidth: StyleSheet.hairlineWidth,
-                  borderTopColor: t.line,
-                })}>
-                <Text style={{ fontSize: 15, color: t.ink, fontWeight: '600' }}>{product.name}</Text>
+                  borderTopColor: t.line })}>
+                <Text style={{ fontSize: 15, color: t.ink, fontFamily: fonts.semibold }}>{product.name}</Text>
                 <Text style={{ fontSize: 12, color: t.inkFaint, marginTop: 2 }}>
                   {product.category} · tracked in {product.display_unit}
                 </Text>
