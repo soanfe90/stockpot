@@ -107,3 +107,28 @@ test('an empty plan yields nothing and complains about nothing', () => {
   assert.deepEqual(accepted, []);
   assert.deepEqual(violations, []);
 });
+
+test('a required ingredient with no amount is refused, not quietly kept', () => {
+  // Told the rice is spent, the model would list it at zero rather than pick
+  // another dish: the slot passed the budget and the kitchen got a recipe
+  // calling for no rice at all.
+  const { accepted, violations } = enforceBudget(
+    [slot('A', 0, [use('rice', 500)]), slot('B', 1, [use('chicken', 300), use('rice', 0)])],
+    pantry
+  );
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0].name, 'A');
+  assert.match(violations.join('\n'), /no amount/);
+});
+
+test('an optional ingredient at zero is still refused', () => {
+  // Optional means "the cook may leave it out", not "it has no size".
+  const { accepted } = enforceBudget([slot('A', 0, [use('rice', 0, 'Arroz', true)])], pantry);
+  assert.equal(accepted.length, 0);
+});
+
+test('a negative amount is refused the same way', () => {
+  const { accepted, violations } = enforceBudget([slot('A', 0, [use('rice', -100)])], pantry);
+  assert.equal(accepted.length, 0);
+  assert.match(violations.join('\n'), /no amount/);
+});

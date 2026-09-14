@@ -5,6 +5,7 @@ import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, ErrorNote, Eyebrow, Icon, Loading } from '@/components/ui/kit';
+import { Working } from '@/components/ui/working';
 import { savePlanAsTemplate } from '@/lib/library';
 import { remindersAvailable, scheduleReminders } from '@/lib/notifications';
 import {
@@ -35,6 +36,7 @@ export default function ReviewPlanScreen() {
   const [shortfalls, setShortfalls] = useState<PlanShortfall[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -135,6 +137,7 @@ export default function ReviewPlanScreen() {
           style: 'destructive',
           onPress: async () => {
             setBusy(true);
+            setRebuilding(true);
             setError(null);
             try {
               await cancelPlan(id);
@@ -155,6 +158,8 @@ export default function ReviewPlanScreen() {
               // than leaving them on a screen whose meals no longer exist.
               setError(`${errorMessage(e)} The previous plan was already cleared — try generating a new one.`);
               setBusy(false);
+            } finally {
+              setRebuilding(false);
             }
           } },
       ]
@@ -300,6 +305,19 @@ export default function ReviewPlanScreen() {
           </>
         )}
       </View>
+
+      {rebuilding ? (
+        <Working
+          title="Starting the plan over"
+          steps={[
+            'Releasing what the old plan was holding…',
+            'Reading the pantry again, in full…',
+            'Building a new plan over the same days…',
+          ]}
+          note="The old meals are already cleared. If you cancel now, generate a new plan from the Meals tab."
+          onCancel={() => setRebuilding(false)}
+        />
+      ) : null}
     </View>
   );
 }

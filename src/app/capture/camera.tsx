@@ -14,6 +14,21 @@ import { useHousehold } from '@/providers/household-provider';
 import { fonts, radius, space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
 
+/**
+ * Where the zoom sits along the lens's range, not a magnification.
+ *
+ * expo-camera's `zoom` is a 0-1 fraction of whatever the device can do, and
+ * Android floors the resulting ratio at 1x -- so a real 0.5x ultra-wide is not
+ * reachable through this prop at all, and a "2x" label would be a guess about
+ * a maximum the app cannot read. These say what they actually are.
+ */
+const ZOOM_STOPS = [
+  { value: 0, label: '1\u00d7' },
+  { value: 0.25, label: 'Closer' },
+  { value: 0.5, label: 'Close' },
+  { value: 0.75, label: 'Closest' },
+] as const;
+
 export default function CameraScreen() {
   const t = useTokens();
   const router = useRouter();
@@ -170,38 +185,6 @@ export default function CameraScreen() {
         </View>
       </View>
 
-      {/* Torch and zoom, out of the way of the frame. Zoom has buttons as well
-          as the pinch: a receipt on a table is often a one-handed job. */}
-      {busy ? null : (
-        <View
-          style={{
-            position: 'absolute',
-            right: space.lg,
-            top: insets.top + 150,
-            gap: space.sm,
-            alignItems: 'center' }}>
-          <Chip
-            icon={torch ? 'flashlight' : 'flashlight-outline'}
-            label={torch ? 'Turn the light off' : 'Turn the light on'}
-            active={torch}
-            onPress={() => setTorch((on) => !on)}
-          />
-          <Chip icon="add" label="Zoom in" onPress={() => setZoom((z) => Math.min(1, z + 0.1))} />
-          <View
-            style={{
-              backgroundColor: '#0009',
-              borderRadius: radius.pill,
-              paddingHorizontal: 8,
-              paddingVertical: 4 }}>
-            <Text style={{ color: '#fff', fontSize: 11, fontFamily: fonts.semibold, fontVariant: ['tabular-nums'] }}>
-              {zoom === 0 ? '1×' : `${(1 + zoom * 9).toFixed(1)}×`}
-            </Text>
-          </View>
-          <Chip icon="remove" label="Zoom out" onPress={() => setZoom((z) => Math.max(0, z - 0.1))} />
-          {zoom > 0 ? <Chip icon="refresh" label="Reset zoom" onPress={() => setZoom(0)} /> : null}
-        </View>
-      )}
-
       {error ? (
         <View style={{ position: 'absolute', left: space.lg, right: space.lg, bottom: insets.bottom + 190 }}>
           <ErrorNote message={error} />
@@ -230,19 +213,58 @@ export default function CameraScreen() {
           </View>
         ) : (
           <>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Take photo"
-              onPress={() => void shoot()}
-              style={({ pressed }) => ({
-                width: 74,
-                height: 74,
-                borderRadius: 37,
-                backgroundColor: '#fff',
-                borderWidth: 4,
-                borderColor: '#fff6',
-                opacity: pressed ? 0.7 : 1 })}
-            />
+            {/* Zoom presets, on the thumb's arc rather than up by the frame:
+                every one of these is pressed while the other hand is holding a
+                receipt flat. expo-camera takes a 0-1 fraction of whatever the
+                lens can do, so these are positions along that range -- the
+                phone decides what they come out as. */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+              {ZOOM_STOPS.map((stop) => (
+                <Pressable
+                  key={stop.value}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: Math.abs(zoom - stop.value) < 0.02 }}
+                  accessibilityLabel={stop.label}
+                  onPress={() => setZoom(stop.value)}
+                  hitSlop={6}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: radius.pill,
+                    backgroundColor: Math.abs(zoom - stop.value) < 0.02 ? '#fff' : '#0009' }}>
+                  <Text
+                    style={{
+                      color: Math.abs(zoom - stop.value) < 0.02 ? '#111' : '#fff',
+                      fontSize: 12,
+                      fontFamily: fonts.semibold }}>
+                    {stop.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xl }}>
+              <Chip
+                icon={torch ? 'flashlight' : 'flashlight-outline'}
+                label={torch ? 'Turn the light off' : 'Turn the light on'}
+                active={torch}
+                onPress={() => setTorch((on) => !on)}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Take photo"
+                onPress={() => void shoot()}
+                style={({ pressed }) => ({
+                  width: 74,
+                  height: 74,
+                  borderRadius: 37,
+                  backgroundColor: '#fff',
+                  borderWidth: 4,
+                  borderColor: '#fff6',
+                  opacity: pressed ? 0.7 : 1 })}
+              />
+              <Chip icon="scan-outline" label="Refocus" onPress={refocus} />
+            </View>
             <View style={{ flexDirection: 'row', gap: space.lg }}>
               <Pressable accessibilityRole="button" onPress={() => void pick()} hitSlop={10}>
                 <Text style={{ color: '#fff', fontSize: 14, fontFamily: fonts.semibold }}>Choose photo</Text>

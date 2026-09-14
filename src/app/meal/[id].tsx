@@ -5,10 +5,12 @@ import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, ErrorNote, Eyebrow, Field, Icon, Loading, TimeField } from '@/components/ui/kit';
+import { Working } from '@/components/ui/working';
 import { useInventory } from '@/hooks/use-inventory';
 import { remindersAvailable, scheduleReminders } from '@/lib/notifications';
 import {
   addIngredient,
+  addPlanGaps,
   loadMeal,
   loadSchedule,
   regenerateSlot,
@@ -18,6 +20,7 @@ import {
 } from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
 import { atMinutes, minutesOfDay } from '@/lib/time';
+import type { Coverage } from '@/lib/planning';
 import type { MealPlan, RecipeIngredient, ScheduledMeal, StockedProduct } from '@/lib/types';
 import { formatQty, fromBase, parseQty, toBase } from '@/lib/units';
 import { useHousehold } from '@/providers/household-provider';
@@ -43,10 +46,13 @@ export default function MealScreen() {
   const [meal, setMeal] = useState<ScheduledMeal | null>(null);
   const [plan, setPlan] = useState<MealPlan | null>(null);
   const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
+  const [coverage, setCoverage] = useState<Record<string, Coverage>>({});
   const [minutes, setMinutes] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
+  // Separate from `busy`: only the model call is worth covering the screen for.
+  const [swapping, setSwapping] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -56,6 +62,7 @@ export default function MealScreen() {
       setMeal(data.meal);
       setPlan(data.plan);
       setIngredients(data.ingredients);
+      setCoverage(data.coverage);
       setMinutes(minutesOfDay(data.meal.scheduled_at));
     } catch (e) {
       setError(errorMessage(e));
@@ -106,7 +113,8 @@ export default function MealScreen() {
       { text: 'Keep it', style: 'cancel' },
       {
         text: 'Swap',
-        onPress: () =>
+        onPress: () => {
+          setSwapping(true);
           void run(async () => {
             await regenerateSlot(household.id, meal.id, meal.scheduled_at.slice(0, 10), {
               diets: profile?.diet_types ?? [],
@@ -116,7 +124,8 @@ export default function MealScreen() {
             });
             // The old slot is gone, so there is nothing here to come back to.
             router.back();
-          }),
+          }).finally(() => setSwapping(false));
+        },
       },
       ]
     );
@@ -139,6 +148,9 @@ export default function MealScreen() {
   // swap within.
   const swappable = movable && (plan.status === 'draft' || plan.status === 'active');
   const timeChanged = minutes !== minutesOfDay(meal.scheduled_at);
+  // Whole-plan gaps, not just this meal's: the shopping list works per plan,
+  // and splitting one meal out of it would leave the rest quietly short.
+  const missing = ingredients.filter((i) => (coverage[i.id]?.short ?? 0) > 0);
   const alreadyIn = new Set(ingredients.map((i) => i.product_id).filter(Boolean) as string[]);
   const addable = products.filter((p) => !alreadyIn.has(p.id) && p.qty_total - p.qty_reserved > 0);
 
@@ -193,6 +205,7 @@ export default function MealScreen() {
               <IngredientRow
                 key={ing.id}
                 ingredient={ing}
+                coverage={coverage[ing.id]}
                 first={index === 0}
                 editable={draft}
                 busy={busy}
@@ -201,6 +214,35 @@ export default function MealScreen() {
               />
             ))}
           </View>
+
+          {missing.length ? (
+            <Card>
+              <View style={{ gap: space.md }}>
+                <Eyebrow color={t.urgent}>Not in the house</Eyebrow>
+                <Text style={{ fontSize: 13, color: t.inkMuted, lineHeight: 19 }}>
+                  {missing.length === 1 ? 'One ingredient is' : `${missing.length} ingredients are`} short of what this
+                  meal needs. Put {missing.length === 1 ? 'it' : 'them'} on the shopping list and the amounts are
+                  carried across, marked as needed for a meal so a list refresh cannot relabel them.
+                </Text>
+                <Button
+                  label="Add what is missing to the shopping list"
+                  variant="secondary"
+                  busy={busy}
+                  onPress={() =>
+                    void run(async () => {
+                      const added = await addPlanGaps(meal.plan_id);
+                      Alert.alert(
+                        added ? 'On your list' : 'Already on your list',
+                        added
+                          ? `${added} item${added === 1 ? '' : 's'} added under Shopping.`
+                          : 'Everything this plan is short of is already there.'
+                      );
+                    })
+                  }
+                />
+              </View>
+            </Card>
+          ) : null}
 
           <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
             {draft
@@ -236,18 +278,32 @@ export default function MealScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      {swapping ? (
+        <Working
+          title="Finding another meal"
+          steps={[
+            'Reading what is left in the pantry…',
+            'Choosing a different dish that fits it…',
+            'Handing this meal\u2019s ingredients over to the new one…',
+          ]}
+          onCancel={() => setSwapping(false)}
+        />
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
 
 function IngredientRow({
   ingredient,
+  coverage,
   first,
   editable,
   busy,
   onSave,
   onRemove }: {
   ingredient: RecipeIngredient;
+  coverage?: Coverage;
   first: boolean;
   editable: boolean;
   busy: boolean;
@@ -261,6 +317,7 @@ function IngredientRow({
 
   // A staple carries no product, so there is no stock behind it to change.
   const tracked = ingredient.product_id !== null;
+  const short = coverage?.short ?? 0;
 
   function save() {
     const value = parseQty(draft);
@@ -294,6 +351,17 @@ function IngredientRow({
               ? formatQty(Number(ingredient.qty), ingredient.base_unit, ingredient.display_unit)
               : 'Pantry staple — not tracked'}
           </Text>
+          {/* The question this answers is "do I need to buy this?", and it
+              cannot be answered by the recipe alone: the pantry has to be read
+              against it. Silence here is what let a meal look complete when
+              half of it was not in the house. */}
+          {short > 0 ? (
+            <Text style={{ fontSize: 12, color: t.urgent, fontFamily: fonts.semibold, fontVariant: ['tabular-nums'] }}>
+              Short {formatQty(short, ingredient.base_unit, ingredient.display_unit)} — needs buying
+            </Text>
+          ) : tracked && coverage ? (
+            <Text style={{ fontSize: 12, color: t.fresh, fontFamily: fonts.medium }}>In your pantry</Text>
+          ) : null}
         </View>
         {editable && tracked && !editing ? (
           <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${ingredient.name}`} onPress={onRemove} hitSlop={8}>

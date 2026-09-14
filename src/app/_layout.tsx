@@ -112,7 +112,12 @@ function RootNavigator() {
         <Stack.Screen name="capture/[id]" options={{ ...header, headerShown: true, title: 'Review scan' }} />
         <Stack.Screen name="shopping/review" options={{ ...header, headerShown: true, title: 'Finish purchase' }} />
         <Stack.Screen name="shopping/history" options={{ ...header, headerShown: true, title: 'Past trips' }} />
-        <Stack.Screen name="plan/create" options={{ ...header, presentation: 'modal', headerShown: true, title: 'New plan' }} />
+        {/* gestureEnabled off: the cover blocks taps, but a swipe-to-dismiss
+            would still walk out of a plan that is mid-write. */}
+        <Stack.Screen
+          name="plan/create"
+          options={{ ...header, presentation: 'modal', headerShown: true, title: 'New plan', gestureEnabled: false }}
+        />
         <Stack.Screen name="plan/[id]" options={{ ...header, headerShown: true, title: 'Review plan' }} />
         <Stack.Screen name="meal/[id]" options={{ ...header, headerShown: true, title: 'This meal' }} />
         <Stack.Screen name="cook/[id]" options={{ ...header, headerShown: true, title: 'Cooking' }} />

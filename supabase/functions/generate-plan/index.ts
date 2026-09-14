@@ -54,7 +54,13 @@ type ReplacedSlot = {
 const IngredientSchema = z.object({
   product_id: z.string().nullable().describe('An id from the pantry list, or null for an untracked staple'),
   name: z.string(),
-  qty: z.number().describe("Amount in the product's base unit (g, ml, or whole units)"),
+  qty: z
+    .number()
+    .positive()
+    .describe(
+      "Amount in the product's base unit (g, ml, or whole units). Always greater than zero -- " +
+        'never 0 to signal that the pantry has run out.'
+    ),
   display_unit: z.string(),
   optional: z.boolean(),
 });
@@ -91,6 +97,11 @@ that calls for food the household does not have is worse than no plan.
   every item. Never switch units.
 - Untracked staples (salt, pepper, water, cooking oil) may be used with
   product_id null. Nothing else may be null.
+- Every ingredient's qty is what the dish actually needs, and is always greater
+  than zero. Never list an ingredient at 0 because earlier meals have used the
+  product up -- a recipe calling for none of something is not a recipe, and it
+  hides the shortage instead of avoiding it. If what is left cannot cover a
+  dish, choose a different dish.
 - Work through what is closest to expiring first. The pantry list gives
   days_left for every item; a plan that rescues food about to be thrown away is
   the entire point of this app.

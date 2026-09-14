@@ -70,6 +70,11 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   `supabase/functions/_shared/budget.ts` checks it against real quantities
   before it is written. It lives outside the Edge Function so it can be tested
   with `npm run test:budget`; never inline a second copy.
+- **An ingredient of no amount is a violation, not a value.** `enforceBudget`
+  refuses any ingredient at qty <= 0, optional ones included, and it checks that
+  before the optional skip. Told a product was spent, the model would list it at
+  zero and the slot would pass — reserving nothing, deducting nothing, and never
+  reaching the shopping list. An invisible hole in a plan that looked complete.
 - **Only `finish_cooking` removes stock for a meal.** Approving reserves,
   skipping and cancelling release. Every one of those goes through the database
   under a row lock.

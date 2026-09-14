@@ -59,10 +59,29 @@ export function enforceBudget<S extends PlanSlot>(
         ok = false;
         continue;
       }
+      // An ingredient of no amount is the model working around this check
+      // rather than obeying it: told a product is spent, it would list the
+      // product with a quantity of zero and the slot would pass. What reached
+      // the kitchen was a recipe calling for "0 g tomatoes", which reserves
+      // nothing, deducts nothing, and never reaches the shopping list -- an
+      // invisible hole in a plan that looked complete.
+      //
+      // Checked before the optional skip, because "optional" means the cook
+      // may leave it out, not that it has no size.
+      if (!(ing.qty > 0)) {
+        violations.push(
+          `"${slot.name}" lists ${ing.name} with no amount. State what the dish actually needs, ` +
+            `or choose a dish the pantry can cover.`
+        );
+        ok = false;
+        continue;
+      }
+
       // Optional ingredients are not budgeted: the cook may leave them out,
       // and reserving for them would starve meals that actually need the stock.
       if (ing.optional) continue;
-      spend.set(ing.product_id, (spend.get(ing.product_id) ?? 0) + Math.max(0, ing.qty));
+
+      spend.set(ing.product_id, (spend.get(ing.product_id) ?? 0) + ing.qty);
     }
 
     if (ok) {

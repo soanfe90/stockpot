@@ -51,7 +51,9 @@ export async function generatePlan(
   scope: PlanScope,
   startsOn: string,
   prefs: PlanPrefs,
-  mealTimes?: MealTimes
+  mealTimes?: MealTimes,
+  /** Abort the wait. The request is dropped; see cancelling in plan/create. */
+  signal?: AbortSignal
 ): Promise<GenerateResult> {
   const { data, error } = await supabase.functions.invoke('generate-plan', {
     body: {
@@ -62,6 +64,7 @@ export async function generatePlan(
       tz_offset_minutes: tzOffsetMinutes(),
       meal_times: mealTimes,
     },
+    signal,
   });
   if (error) throw new Error(await readFunctionError(error));
   return data as GenerateResult;
@@ -161,14 +164,26 @@ export async function loadRecipe(recipeId: string): Promise<{
 }
 
 /**
- * One meal with everything the editor needs: the recipe, its ingredients, and
- * the status of the plan it belongs to -- which is what decides whether any of
- * it can still be changed.
+ * What this meal needs of one product, and how much of it the household
+ * actually has. Quantities are in the product's base unit.
+ */
+export type Coverage = {
+  /** Scaled to the servings this meal is for, not the recipe's own. */
+  needed: number;
+  covered: number;
+  short: number;
+};
+
+/**
+ * One meal with everything the editor needs: the recipe, its ingredients, the
+ * status of the plan it belongs to -- which decides whether any of it can still
+ * be changed -- and whether the pantry can actually cover each line.
  */
 export async function loadMeal(slotId: string): Promise<{
   meal: ScheduledMeal;
   plan: MealPlan;
   ingredients: RecipeIngredient[];
+  coverage: Record<string, Coverage>;
 }> {
   const { data: slot, error } = await supabase
     .from('meal_slot')
@@ -178,14 +193,39 @@ export async function loadMeal(slotId: string): Promise<{
   if (error) throw error;
 
   const meal = slot as unknown as ScheduledMeal & { plan: MealPlan };
-  const { data: ingredients, error: ingError } = await supabase
-    .from('recipe_ingredient')
-    .select('*')
-    .eq('recipe_id', meal.recipe_id)
-    .order('position');
+  const [{ data: ingredients, error: ingError }, { data: held }, { data: stock }] = await Promise.all([
+    supabase.from('recipe_ingredient').select('*').eq('recipe_id', meal.recipe_id).order('position'),
+    supabase.from('reservation').select('product_id, qty').eq('slot_id', slotId),
+    supabase.from('product_stock').select('product_id, qty_total, qty_reserved').eq('household_id', meal.household_id),
+  ]);
   if (ingError) throw ingError;
 
-  return { meal, plan: meal.plan, ingredients: (ingredients ?? []) as RecipeIngredient[] };
+  const lines = (ingredients ?? []) as RecipeIngredient[];
+  const scale = meal.servings / Math.max(1, meal.recipe.servings);
+
+  // An approved meal is holding its own claim, so what covers it is that claim
+  // -- free stock would read as short by exactly the amount it has reserved.
+  // A draft holds nothing, so what covers it is what nobody else has spoken for.
+  const reserved = new Map<string, number>();
+  for (const r of (held ?? []) as { product_id: string; qty: number }[]) {
+    reserved.set(r.product_id, (reserved.get(r.product_id) ?? 0) + Number(r.qty));
+  }
+  const free = new Map<string, number>();
+  for (const s of (stock ?? []) as { product_id: string; qty_total: number; qty_reserved: number }[]) {
+    free.set(s.product_id, Math.max(0, Number(s.qty_total) - Number(s.qty_reserved)));
+  }
+
+  const approved = meal.plan.status !== 'draft';
+  const coverage: Record<string, Coverage> = {};
+  for (const line of lines) {
+    if (!line.product_id) continue;
+    const needed = Number(line.qty) * scale;
+    const has = approved ? (reserved.get(line.product_id) ?? 0) : (free.get(line.product_id) ?? 0);
+    const covered = Math.min(needed, has);
+    coverage[line.id] = { needed, covered, short: Math.max(0, needed - covered) };
+  }
+
+  return { meal, plan: meal.plan, ingredients: lines, coverage };
 }
 
 export async function approvePlan(planId: string): Promise<{ shortfall_units: number }> {
