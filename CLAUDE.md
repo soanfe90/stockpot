@@ -24,8 +24,16 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   `src/lib/units.ts`, `to_base_qty` / `base_of_display_unit` in the capture
   migration, and the `UNITS` enum in `supabase/functions/scan-capture`. The
   database is the authority — it is where stock is actually written.
-- **Model calls run in Edge Functions, never the client.** `ANTHROPIC_API_KEY`
-  must not reach the app bundle; `EXPO_PUBLIC_*` vars are inlined into it.
+- **Model calls run in Edge Functions, never the client.** A model API key must
+  not reach the app bundle; `EXPO_PUBLIC_*` vars are inlined into it.
+- **All model calls go through `_shared/llm.ts`.** It picks the provider from
+  `LLM_PROVIDER` (gemini by default) and validates the reply against the same
+  zod schema whichever one answered. Never call a provider SDK from a function
+  directly — that is how the two paths drift apart.
+- **Edge Functions are type-checked** by `npm run typecheck:functions`, which
+  maps each `npm:` specifier to the real package. They sat unchecked for four
+  phases and it hid a live type error; keep the versions in that tsconfig in
+  step with the imports.
 - **`refresh_shopping_list` must never touch a pinned, ticked or manual row.**
   Editing or ticking sets `pinned`. Rewriting the list under someone mid-trip is
   the worst thing this feature can do.

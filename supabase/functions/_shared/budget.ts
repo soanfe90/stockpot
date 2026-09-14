@@ -33,12 +33,12 @@ export type PantryItem = { product_id: string; name: string; available: number }
  * real prefix of the plan rather than an arbitrary subset -- and every reason
  * is reported, both to tell the user and to steer the next attempt.
  */
-export function enforceBudget(
-  slots: PlanSlot[],
+export function enforceBudget<S extends PlanSlot>(
+  slots: S[],
   pantry: PantryItem[]
-): { accepted: PlanSlot[]; violations: string[] } {
+): { accepted: S[]; violations: string[] } {
   const remaining = new Map(pantry.map((p) => [p.product_id, p.available]));
-  const accepted: PlanSlot[] = [];
+  const accepted: S[] = [];
   const violations: string[] = [];
 
   for (const slot of [...slots].sort((a, b) => a.day_offset - b.day_offset)) {

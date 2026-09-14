@@ -8,16 +8,17 @@
  * products by id from that list, and every plan is checked against real
  * quantities here before the user ever sees it.
  *
+ * The model provider is chosen by LLM_PROVIDER (see _shared/llm.ts).
+ *
  *   supabase functions deploy generate-plan
  */
 
-import Anthropic from 'npm:@anthropic-ai/sdk@0.124.0';
-import { zodOutputFormat } from 'npm:@anthropic-ai/sdk@0.124.0/helpers/zod';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@4.6.1';
 
 import { enforceBudget, STAPLES } from '../_shared/budget.ts';
 import { corsHeaders, fail, json } from '../_shared/cors.ts';
+import { activeProvider, generateStructured } from '../_shared/llm.ts';
 
 const CATEGORIES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 const MAX_ATTEMPTS = 3;
@@ -92,9 +93,6 @@ Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) return fail('Missing Authorization header.', 401);
 
-  const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!anthropicKey) return fail('ANTHROPIC_API_KEY is not set on this project.', 500);
-
   let body: {
     household_id: string;
     scope: 'single' | 'day' | 'week';
@@ -153,61 +151,36 @@ Deno.serve(async (req: Request) => {
     const days = body.scope === 'week' ? 7 : 1;
     const wanted = body.scope === 'single' ? 1 : days * 3;
 
-    const anthropic = new Anthropic({ apiKey: anthropicKey });
-
     let accepted: Slot[] = [];
     let violations: string[] = [];
     let notes: string | null = null;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS && accepted.length === 0; attempt++) {
-      const response = await anthropic.beta.messages.parse({
-        model: 'claude-opus-5',
-        max_tokens: 32000,
-        thinking: { type: 'adaptive' },
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default',
-        output_config: { effort: 'high', format: zodOutputFormat(PlanSchema) },
-        system: [
-          { type: 'text', text: SYSTEM_RULES },
+      const parsed = await generateStructured({
+        label: 'Building the plan',
+        schema: PlanSchema,
+        maxOutputTokens: 32000,
+        system: [SYSTEM_RULES, '', `Untracked staples: ${STAPLES.join(', ')}.`].join('\n'),
+        parts: [
           {
             type: 'text',
-            text: `Untracked staples: ${STAPLES.join(', ')}.`,
-            // Rules and the staples list are the same on every call; the
-            // pantry and the request are not. Regenerating reads warm.
-            cache_control: { type: 'ephemeral' },
-          },
-        ],
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: [
-                  `Pantry (sorted by what expires soonest):`,
-                  JSON.stringify(pantry),
-                  ``,
-                  `Recently cooked here, for reuse where it fits: ${JSON.stringify(history ?? [])}`,
-                  ``,
-                  `Preferences: ${JSON.stringify(body.prefs ?? {})}`,
-                  ``,
-                  `Plan ${wanted} meal${wanted === 1 ? '' : 's'} across ${days} day${days === 1 ? '' : 's'},`,
-                  `starting on ${body.starts_on} (day_offset 0).`,
-                  violations.length
-                    ? `\nYour previous attempt over-allocated the pantry:\n${violations.join('\n')}\nStay inside those amounts.`
-                    : '',
-                ].join('\n'),
-              },
-            ],
+            text: [
+              `Pantry (sorted by what expires soonest):`,
+              JSON.stringify(pantry),
+              ``,
+              `Recently cooked here, for reuse where it fits: ${JSON.stringify(history ?? [])}`,
+              ``,
+              `Preferences: ${JSON.stringify(body.prefs ?? {})}`,
+              ``,
+              `Plan ${wanted} meal${wanted === 1 ? '' : 's'} across ${days} day${days === 1 ? '' : 's'},`,
+              `starting on ${body.starts_on} (day_offset 0).`,
+              violations.length
+                ? `\nYour previous attempt over-allocated the pantry:\n${violations.join('\n')}\nStay inside those amounts.`
+                : '',
+            ].join('\n'),
           },
         ],
       });
-
-      if (response.stop_reason === 'refusal') {
-        return fail('The model declined to plan this. Try adjusting your preferences.', 502);
-      }
-      const parsed = response.parsed_output;
-      if (!parsed) continue;
 
       notes = parsed.notes;
       const checked = enforceBudget(parsed.slots, pantry);
@@ -291,6 +264,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return json({
+      provider: activeProvider(),
       plan_id: plan.id,
       slots: accepted.length,
       requested: wanted,

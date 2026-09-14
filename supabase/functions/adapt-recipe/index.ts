@@ -6,16 +6,17 @@
  * is never modified -- adaptation forks a new recipe that keeps a link to its
  * parent, so the library always holds the version that was actually cooked.
  *
+ * The model provider is chosen by LLM_PROVIDER (see _shared/llm.ts).
+ *
  *   supabase functions deploy adapt-recipe
  */
 
-import Anthropic from 'npm:@anthropic-ai/sdk@0.124.0';
-import { zodOutputFormat } from 'npm:@anthropic-ai/sdk@0.124.0/helpers/zod';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@4.6.1';
 
 import { enforceBudget, STAPLES } from '../_shared/budget.ts';
 import { corsHeaders, fail, json } from '../_shared/cors.ts';
+import { activeProvider, generateStructured } from '../_shared/llm.ts';
 
 const AdaptedSchema = z.object({
   name: z.string().describe('Keep the original name unless the dish genuinely changed'),
@@ -57,9 +58,6 @@ Deno.serve(async (req: Request) => {
 
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) return fail('Missing Authorization header.', 401);
-
-  const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!anthropicKey) return fail('ANTHROPIC_API_KEY is not set on this project.', 500);
 
   let body: { recipe_id: string; servings?: number };
   try {
@@ -107,40 +105,24 @@ Deno.serve(async (req: Request) => {
       return fail('There is nothing in the pantry to adapt this to yet.', 409);
     }
 
-    const anthropic = new Anthropic({ apiKey: anthropicKey });
-    const response = await anthropic.beta.messages.parse({
-      model: 'claude-opus-5',
-      max_tokens: 16000,
-      thinking: { type: 'adaptive' },
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      output_config: { effort: 'high', format: zodOutputFormat(AdaptedSchema) },
-      system: [
-        { type: 'text', text: SYSTEM_RULES },
-        { type: 'text', text: `Untracked staples: ${STAPLES.join(', ')}.`, cache_control: { type: 'ephemeral' } },
-      ],
-      messages: [
+    const adapted = await generateStructured({
+      label: 'Adapting the recipe',
+      schema: AdaptedSchema,
+      maxOutputTokens: 16000,
+      system: [SYSTEM_RULES, '', `Untracked staples: ${STAPLES.join(', ')}.`].join('\n'),
+      parts: [
         {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: [
-                `Recipe: ${JSON.stringify({ ...recipe, ingredients: original ?? [] })}`,
-                ``,
-                `Pantry: ${JSON.stringify(pantry)}`,
-                ``,
-                `Refit it for ${body.servings ?? recipe.servings} servings.`,
-              ].join('\n'),
-            },
-          ],
+          type: 'text',
+          text: [
+            `Recipe: ${JSON.stringify({ ...recipe, ingredients: original ?? [] })}`,
+            ``,
+            `Pantry: ${JSON.stringify(pantry)}`,
+            ``,
+            `Refit it for ${body.servings ?? recipe.servings} servings.`,
+          ].join('\n'),
         },
       ],
     });
-
-    if (response.stop_reason === 'refusal') return fail('The model declined to adapt this recipe.', 502);
-    const adapted = response.parsed_output;
-    if (!adapted) return fail('The adaptation came back in an unreadable shape.', 502);
 
     // The same guard the planner uses: an adaptation that overdraws the pantry
     // is exactly the failure adapting was supposed to prevent.
@@ -189,7 +171,12 @@ Deno.serve(async (req: Request) => {
     const { error: ingError } = await supabase.from('recipe_ingredient').insert(rows);
     if (ingError) throw ingError;
 
-    return json({ recipe_id: fork.id, parent_recipe_id: recipe.id, changes: adapted.changes });
+    return json({
+      provider: activeProvider(),
+      recipe_id: fork.id,
+      parent_recipe_id: recipe.id,
+      changes: adapted.changes,
+    });
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e), 502);
   }

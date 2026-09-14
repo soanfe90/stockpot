@@ -38,8 +38,11 @@
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
+    "@google/genai": "^2.22.0",
     "@types/react": "~19.2.2",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "zod": "^4.6.1"
   },
   "scripts": {
     "start": "expo start",
@@ -50,7 +53,8 @@
     "test:db": "bash supabase/tests/run.sh",
     "typecheck": "tsc --noEmit",
     "test:budget": "node --experimental-strip-types --test supabase/functions/_shared/__tests__/*.test.ts",
-    "test": "npm run typecheck && npm run test:budget"
+    "test": "npm run typecheck && npm run typecheck:functions && npm run test:budget",
+    "typecheck:functions": "tsc -p supabase/functions/tsconfig.json"
   },
   "private": true
 }

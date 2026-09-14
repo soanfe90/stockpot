@@ -36,15 +36,33 @@ alter publication supabase_realtime add table product;
 
 ### 2. The Edge Functions
 
-Scanning and planning call Claude server-side, so the Anthropic key never ships
-in the app bundle:
+Scanning, planning and recipe adaptation call a model server-side, so the API
+key never ships in the app bundle. **Gemini is the default:**
 
 ```bash
-npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+npx supabase secrets set GEMINI_API_KEY=...
 npx supabase functions deploy scan-capture
 npx supabase functions deploy generate-plan
 npx supabase functions deploy adapt-recipe
 ```
+
+The model defaults to `gemini-2.5-flash`. If your key cannot use that one, the
+function says so and names the variable to change:
+
+```bash
+npx supabase secrets set GEMINI_MODEL=<a model your key can use>
+```
+
+To run Claude instead — same code, one variable:
+
+```bash
+npx supabase secrets set LLM_PROVIDER=anthropic
+npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Both providers go through `supabase/functions/_shared/llm.ts`, which validates
+whatever comes back against the same schema either way. Switching is a secret,
+not a rewrite — so you can run the same receipt through both and compare.
 
 The `captures` storage bucket and its policies are created by the migrations.
 

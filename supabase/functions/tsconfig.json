@@ -1,0 +1,37 @@
+{
+  "//": "Edge Functions run on Deno, so they are excluded from the app's tsconfig. This checks them from the project toolchain by mapping each npm: specifier to the real package, which is how genuine type errors get caught rather than only syntax ones. Keep the versions here in step with the imports in the function sources.",
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": [],
+    "lib": [
+      "es2023",
+      "dom"
+    ],
+    "paths": {
+      "npm:zod@4.6.1": [
+        "../../node_modules/zod"
+      ],
+      "npm:@anthropic-ai/sdk@0.124.0": [
+        "../../node_modules/@anthropic-ai/sdk"
+      ],
+      "npm:@anthropic-ai/sdk@0.124.0/helpers/zod": [
+        "../../node_modules/@anthropic-ai/sdk/helpers/zod"
+      ],
+      "npm:@google/genai@2.22.0": [
+        "../../node_modules/@google/genai"
+      ],
+      "npm:@supabase/supabase-js@2": [
+        "../../node_modules/@supabase/supabase-js"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts"
+  ]
+}

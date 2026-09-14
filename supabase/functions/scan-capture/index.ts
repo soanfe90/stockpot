@@ -5,19 +5,20 @@
  * draft tray. It never touches inventory: the user reviews the tray and
  * commit_capture() does the writing.
  *
- * Runs server-side because ANTHROPIC_API_KEY must not ship in the app bundle.
+ * Runs server-side because the model API key must not ship in the app bundle.
+ * The provider is chosen by LLM_PROVIDER (see _shared/llm.ts).
  *
- *   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+ *   supabase secrets set GEMINI_API_KEY=...
  *   supabase functions deploy scan-capture
  */
 
-import Anthropic from 'npm:@anthropic-ai/sdk@0.124.0';
-import { zodOutputFormat } from 'npm:@anthropic-ai/sdk@0.124.0/helpers/zod';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { encodeBase64 } from 'jsr:@std/encoding@^1/base64';
 import { z } from 'npm:zod@4.6.1';
 
 import { corsHeaders, fail, json } from '../_shared/cors.ts';
+import { STAPLES } from '../_shared/budget.ts';
+import { activeProvider, asImageMimeType, generateStructured, LlmError } from '../_shared/llm.ts';
 
 /* ------------------------------------------------------------------ types -- */
 
@@ -103,11 +104,6 @@ Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) return fail('Missing Authorization header.', 401);
 
-  const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!anthropicKey) {
-    return fail('ANTHROPIC_API_KEY is not set on this project. Run: supabase secrets set ANTHROPIC_API_KEY=...', 500);
-  }
-
   let captureId: string;
   try {
     ({ capture_id: captureId } = await req.json());
@@ -139,7 +135,7 @@ Deno.serve(async (req: Request) => {
     if (downloadError || !blob) throw new Error('Could not read the photo from storage.');
 
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    const mediaType = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/jpeg';
+    const mediaType = asImageMimeType(blob.type);
 
     // Catalog and learned aliases go into the prompt so the model can resolve
     // a till abbreviation to a product directly.
@@ -167,52 +163,31 @@ Deno.serve(async (req: Request) => {
       aliases: aliasesByProduct.get(p.id) ?? [],
     }));
 
-    const anthropic = new Anthropic({ apiKey: anthropicKey });
-
-    const response = await anthropic.beta.messages.parse({
-      model: 'claude-opus-5',
-      max_tokens: 16000,
-      thinking: { type: 'adaptive' },
-      // A refusal on a grocery photo would be spurious; let the API rescue the
-      // call rather than failing a scan the user is standing in a kitchen for.
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      output_config: {
-        effort: 'high',
-        format: zodOutputFormat(ScanSchema),
-      },
+    const parsed = await generateStructured({
+      label: 'Reading the photo',
+      schema: ScanSchema,
+      maxOutputTokens: 16000,
+      // Rules first, then the catalog: the stable part of the prompt leads, so
+      // the provider's caching (where it has any) has a prefix to hold on to.
       system: [
-        { type: 'text', text: SYSTEM_RULES },
+        SYSTEM_RULES,
+        '',
+        `Untracked staples: ${STAPLES.join(', ')}.`,
+        '',
+        `The household's current catalog, as JSON:`,
+        JSON.stringify(catalog),
+      ].join('\n'),
+      parts: [
+        { type: 'image', mimeType: mediaType, data: encodeBase64(bytes) },
         {
           type: 'text',
-          text: `The household's current catalog, as JSON:\n${JSON.stringify(catalog)}`,
-          // Stable prefix ends here: rules and catalog change rarely, the photo
-          // changes every call. Regenerating a scan then reads a warm cache.
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: encodeBase64(bytes) } },
-            {
-              type: 'text',
-              text: capture.kind === 'receipt'
-                ? 'This is a supermarket receipt. List everything purchasable on it.'
-                : 'This is a photo of groceries. List every distinct product you can see.',
-            },
-          ],
+          text:
+            capture.kind === 'receipt'
+              ? 'This is a supermarket receipt. List everything purchasable on it.'
+              : 'This is a photo of groceries. List every distinct product you can see.',
         },
       ],
     });
-
-    if (response.stop_reason === 'refusal') {
-      throw new Error('The model declined to read this image. Try a clearer photo of just the receipt.');
-    }
-
-    const parsed = response.parsed_output;
-    if (!parsed) throw new Error('The scan came back in an unreadable shape. Try again.');
 
     const rows = parsed.lines.map((line, index) => ({
       capture_id: captureId,
@@ -251,16 +226,12 @@ Deno.serve(async (req: Request) => {
       store: parsed.store,
       purchased_on: parsed.purchased_on,
       lines: rows.length,
-      usage: {
-        input_tokens: response.usage.input_tokens,
-        output_tokens: response.usage.output_tokens,
-        cache_read_input_tokens: response.usage.cache_read_input_tokens,
-      },
+      provider: activeProvider(),
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await supabase.from('capture').update({ status: 'failed', error: message }).eq('id', captureId);
-    return fail(message, 502);
+    return fail(message, e instanceof LlmError ? 502 : 500);
   }
 });
 
