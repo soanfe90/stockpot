@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { StatePill } from '@/components/inventory/product-row';
-import { Button, Card, ErrorNote, Eyebrow, Field, Loading, Segmented } from '@/components/ui/kit';
+import { Button, Card, Disclosure, ErrorNote, Eyebrow, Field, Loading, Segmented, Sheet } from '@/components/ui/kit';
 import { usefulLifeFor } from '@/lib/categories';
 import { formatDate, isoDateIn, stockState } from '@/lib/expiry';
 import { errorMessage, supabase } from '@/lib/supabase';
@@ -32,6 +32,7 @@ export default function ProductScreen() {
   const [addQty, setAddQty] = useState('');
   const [addExpiry, setAddExpiry] = useState('');
   const [addStorage, setAddStorage] = useState<StoragePlace>('pantry');
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -94,6 +95,9 @@ export default function ProductScreen() {
         p_expires_on: addExpiry,
         p_storage: addStorage });
       if (rpcError) throw rpcError;
+      // Closed on success so the new lot is visible in the list behind it --
+      // the confirmation is the row appearing, not a message about it.
+      setAdding(false);
       setAddQty('');
       await load();
     } catch (e) {
@@ -290,18 +294,19 @@ export default function ProductScreen() {
             <StatePill state={state} expiry={nextExpiry} />
           </View>
           <Text style={{ fontSize: 13, color: t.inkFaint }}>
-            {product.category} · usually the {product.storage} · {product.default_useful_life_days} days there
+            {product.category}
+            {lots.length ? ` · across ${lots.length} lot${lots.length === 1 ? '' : 's'}` : ''}
           </Text>
         </View>
 
         <ErrorNote message={error} />
 
         <View style={{ gap: space.md }}>
-          <Eyebrow>Lots{lots.length > 1 ? ` · ${lots.length}` : ''}</Eyebrow>
+          <Eyebrow>What you have</Eyebrow>
           {lots.length === 0 ? (
             <Card>
               <Text style={{ color: t.inkMuted, fontSize: 14, lineHeight: 20 }}>
-                No stock on record. Add some below and the expiry clock starts.
+                None in the house. Add some and the expiry clock starts.
               </Text>
             </Card>
           ) : (
@@ -319,90 +324,112 @@ export default function ProductScreen() {
               ))}
             </View>
           )}
-          <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
-            Lots are kept apart on purpose: cooking always drains the one closest to expiring.
-          </Text>
+          {lots.length > 1 ? (
+            <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
+              Kept apart on purpose: cooking always drains the one closest to its date.
+            </Text>
+          ) : null}
         </View>
 
-        <Card>
-          <View style={{ gap: space.lg }}>
-            <Eyebrow>Add stock</Eyebrow>
-            <Field
-              label="Quantity"
-              value={addQty}
-              onChangeText={setAddQty}
-              keyboardType="decimal-pad"
-              suffix={product.display_unit}
-              placeholder="0"
-            />
-            <Field
-              label="Expires on"
-              value={addExpiry}
-              onChangeText={setAddExpiry}
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder="YYYY-MM-DD"
-              hint={`Reads as ${formatDate(addExpiry)}. ${expiryReason}`}
-            />
-            <Segmented
-              label="Stored in"
-              options={STORAGE_PLACES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
-              value={addStorage}
-              onChange={applyAddStorage}
-            />
-            <Button label="Add stock" onPress={addStock} busy={busy} />
-          </View>
-        </Card>
+        <Button label="Add stock" onPress={() => setAdding(true)} />
 
-        <Card>
-          <View style={{ gap: space.lg }}>
-            <Eyebrow>Where it lives, and how long it keeps</Eyebrow>
-            {/* This is the product's default, applied to stock added from now
-                on. Lots already on the shelf keep the dates they were given --
-                changing this does not rewrite history. */}
-            <Segmented
-              label="Usually stored in"
-              options={STORAGE_PLACES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
-              value={product.storage}
-              onChange={(storage) => void moveProduct(storage)}
-            />
-            <Field
-              label="Useful life"
-              value={usefulLife}
-              onChangeText={setUsefulLife}
-              keyboardType="number-pad"
-              suffix="days"
-              hint={`How long it keeps in the ${product.storage}. Stock put somewhere else is dated from this — ${
-                product.storage === 'freezer' ? 'the fridge' : 'the freezer'
-              } gives it ${usefulLifeFor(
-                product.category,
-                usualLife,
-                product.storage,
-                product.storage === 'freezer' ? 'fridge' : 'freezer'
-              )} days. Existing lots keep the dates they were given.`}
-            />
-            <Button label="Save useful life" variant="secondary" onPress={saveUsefulLife} busy={busy} />
-          </View>
-        </Card>
+        {/* Everything below is true of the *product* rather than of what is on
+            the shelf: read occasionally, changed rarely, and — when it sat open
+            beside the add-stock form — impossible to tell apart from it. Two
+            "stored in" controls a thumb's width apart, one meaning this lot and
+            one meaning the default, read as a bug rather than as two settings. */}
+        <Disclosure
+          title="How this product behaves"
+          note={`Kept in the ${product.storage} · ${usualLife} days · ${
+            product.low_threshold > 0
+              ? `warn below ${formatQty(product.low_threshold, product.base_unit, product.display_unit)}`
+              : 'warn when it runs out'
+          }`}>
+          <Card>
+            <View style={{ gap: space.lg }}>
+              <View style={{ gap: space.sm }}>
+                <Segmented
+                  label="New stock goes in"
+                  options={STORAGE_PLACES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
+                  value={product.storage}
+                  onChange={(storage) => void moveProduct(storage)}
+                />
+                <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
+                  Where Add stock starts from. Lots already on a shelf stay where they are — move one from its own
+                  row above.
+                </Text>
+              </View>
 
-        <Card>
-          <View style={{ gap: space.lg }}>
-            <Eyebrow>Running low</Eyebrow>
-            <Field
-              label="Tell me when it drops below"
-              value={lowThreshold}
-              onChangeText={setLowThreshold}
-              keyboardType="decimal-pad"
-              suffix={product.display_unit}
-              placeholder="0"
-              hint="Leave blank to be told only when it runs out entirely."
-            />
-            <Button label="Save" variant="secondary" onPress={saveLowThreshold} busy={busy} />
-          </View>
-        </Card>
+              <View style={{ gap: space.sm }}>
+                <Field
+                  label={`Keeps for, in the ${product.storage}`}
+                  value={usefulLife}
+                  onChangeText={setUsefulLife}
+                  keyboardType="number-pad"
+                  suffix="days"
+                />
+                <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
+                  Used to fill in an expiry date when you add stock without one. Somewhere colder gets longer: the{' '}
+                  {product.storage === 'freezer' ? 'fridge' : 'freezer'} would give it{' '}
+                  {usefulLifeFor(
+                    product.category,
+                    usualLife,
+                    product.storage,
+                    product.storage === 'freezer' ? 'fridge' : 'freezer'
+                  )}{' '}
+                  days. Dates already on a lot are never rewritten.
+                </Text>
+                <Button label="Save" variant="secondary" onPress={saveUsefulLife} busy={busy} />
+              </View>
+
+              <View style={{ gap: space.sm }}>
+                <Field
+                  label="Put it on the shopping list below"
+                  value={lowThreshold}
+                  onChangeText={setLowThreshold}
+                  keyboardType="decimal-pad"
+                  suffix={product.display_unit}
+                  placeholder="0"
+                  hint="Leave blank to be told only when it runs out entirely."
+                />
+                <Button label="Save" variant="secondary" onPress={saveLowThreshold} busy={busy} />
+              </View>
+            </View>
+          </Card>
+        </Disclosure>
 
         <Button label="Delete product" variant="danger" onPress={confirmDelete} />
       </ScrollView>
+
+      {/* One job, then it goes away. Inside it every control is about the lot
+          being added, which is what makes "Stored in" unambiguous here. */}
+      <Sheet visible={adding} title={`Add ${product.name}`} onClose={() => setAdding(false)}>
+        <Field
+          label="How much"
+          value={addQty}
+          onChangeText={setAddQty}
+          keyboardType="decimal-pad"
+          suffix={product.display_unit}
+          placeholder="0"
+          autoFocus
+        />
+        <Segmented
+          label="Putting it in the"
+          options={STORAGE_PLACES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
+          value={addStorage}
+          onChange={applyAddStorage}
+        />
+        <Field
+          label="Use by"
+          value={addExpiry}
+          onChangeText={setAddExpiry}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="YYYY-MM-DD"
+          hint={`Reads as ${formatDate(addExpiry)}. ${expiryReason}`}
+        />
+        <Button label="Add to the pantry" onPress={addStock} busy={busy} />
+      </Sheet>
     </KeyboardAvoidingView>
   );
 }

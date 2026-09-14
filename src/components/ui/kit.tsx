@@ -2,7 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -524,6 +528,99 @@ export function FloatingBar({
         borderTopWidth: StyleSheet.hairlineWidth * 2,
         borderTopColor: t.line }}>
       {children}
+    </View>
+  );
+}
+
+/* ----------------------------------------------------------------- sheet -- */
+
+/**
+ * A panel that slides up over the screen for one job, then goes away.
+ *
+ * The alternative is a form that lives permanently on the page, which is how a
+ * screen ends up with two controls that look identical and mean different
+ * things -- the product editor had "Stored in" for the lot being added sitting
+ * directly above "Usually stored in" for the product. Neither was wrong; they
+ * simply should never have been on screen together.
+ */
+export function Sheet({
+  visible,
+  title,
+  onClose,
+  children }: {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const t = useTokens();
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable accessibilityLabel="Close" onPress={onClose} style={{ flex: 1, backgroundColor: '#0006' }} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View
+          style={{
+            backgroundColor: t.ground,
+            borderTopLeftRadius: radius.lg,
+            borderTopRightRadius: radius.lg,
+            paddingTop: space.lg,
+            paddingBottom: space.xxl,
+            maxHeight: '88%' }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: space.lg,
+              paddingBottom: space.md }}>
+            <Text style={[type_.title, { fontSize: 19, color: t.ink }]}>{title}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={10}>
+              <Ionicons name="close" size={22} color={t.inkFaint} />
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
+            {children}
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------ disclosure -- */
+
+/**
+ * A section folded away until asked for. What belongs behind one is anything
+ * true of the *product* rather than of the stock on the shelf: read often,
+ * changed rarely, and confusing next to the things that are changed often.
+ */
+export function Disclosure({
+  title,
+  note,
+  children }: {
+  title: string;
+  note?: string;
+  children: ReactNode;
+}) {
+  const t = useTokens();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <View style={{ gap: space.md }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((o) => !o)}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[type_.meta, { fontSize: 15, color: t.ink }]}>{title}</Text>
+          {note && !open ? (
+            <Text style={[type_.small, { color: t.inkFaint, fontSize: 12.5 }]}>{note}</Text>
+          ) : null}
+        </View>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={t.inkFaint} />
+      </Pressable>
+      {open ? children : null}
     </View>
   );
 }
