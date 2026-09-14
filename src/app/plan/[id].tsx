@@ -194,12 +194,24 @@ export default function ReviewPlanScreen() {
     );
   }
 
+  /**
+   * Deleting the plan. A draft has taken nothing yet, so this is only a tidy-up
+   * -- but an approved one is holding stock and has rows on the shopping list,
+   * and saying so is the difference between a safe tap and a regretted one.
+   */
   function discard() {
-    if (!id) return;
-    Alert.alert('Discard this plan?', 'The meals are deleted. Nothing has been taken from your pantry.', [
+    if (!id || !plan) return;
+    const approvedNow = plan.status !== 'draft';
+    Alert.alert(
+      approvedNow ? 'Delete this plan?' : 'Discard this plan?',
+      approvedNow
+        ? 'Every meal in it goes and its ingredients are released back into your pantry. Anything it put on your ' +
+          'shopping list that you have not already ticked comes off. Nothing is deducted from your stock.'
+        : 'The meals are deleted. Nothing has been taken from your pantry.',
+      [
       { text: 'Keep it', style: 'cancel' },
       {
-        text: 'Discard',
+        text: approvedNow ? 'Delete' : 'Discard',
         style: 'destructive',
         onPress: async () => {
           try {
@@ -209,7 +221,8 @@ export default function ReviewPlanScreen() {
             setError(errorMessage(e));
           }
         } },
-    ]);
+      ]
+    );
   }
 
   if (loading) return <Loading />;
@@ -430,6 +443,7 @@ export default function ReviewPlanScreen() {
           <>
             <Button label="Save to library as a reusable plan" variant="secondary" onPress={saveAsTemplate} />
             <Button label="Start this plan over" variant="ghost" onPress={() => startOver()} busy={busy} />
+            <Button label="Delete this plan" variant="danger" onPress={discard} />
           </>
         ) : (
           <>
