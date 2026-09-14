@@ -419,3 +419,49 @@ function Stepper({ icon, onPress, label }: { icon: IconName; onPress: () => void
     </Pressable>
   );
 }
+
+/* ---------------------------------------------------------------- toggle -- */
+
+/**
+ * A labelled on/off row. Drawn rather than using RN's Switch so it carries the
+ * app's own palette in both themes -- the platform switch ignores tokens and
+ * reads as borrowed furniture next to everything else here.
+ */
+export function Toggle({
+  label,
+  hint,
+  value,
+  onChange }: {
+  label: string;
+  hint?: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  const t = useTokens();
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value }}
+      accessibilityLabel={label}
+      onPress={() => onChange(!value)}
+      style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.md }}>
+      <View
+        style={{
+          width: 44,
+          height: 26,
+          borderRadius: radius.pill,
+          padding: 3,
+          justifyContent: 'center',
+          alignItems: value ? 'flex-end' : 'flex-start',
+          backgroundColor: value ? t.accent : t.surfaceAlt,
+          borderWidth: StyleSheet.hairlineWidth * 2,
+          borderColor: value ? t.accent : t.line }}>
+        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: value ? t.surface : t.inkFaint }} />
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[type_.body, { color: t.ink, fontFamily: type_.meta.fontFamily, fontSize: 14.5 }]}>{label}</Text>
+        {hint ? <Text style={[type_.small, { color: t.inkFaint, fontSize: 12.5, lineHeight: 17 }]}>{hint}</Text> : null}
+      </View>
+    </Pressable>
+  );
+}

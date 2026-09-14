@@ -1,12 +1,12 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Body, Button, ErrorNote, Segmented, Title } from '@/components/ui/kit';
+import { Body, Button, ErrorNote, Icon, Segmented, Title, type IconName } from '@/components/ui/kit';
 import { scanPhoto } from '@/lib/capture';
 import { errorMessage } from '@/lib/supabase';
 import type { CaptureKind } from '@/lib/types';
@@ -23,8 +23,59 @@ export default function CameraScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [kind, setKind] = useState<CaptureKind>('receipt');
+  const [zoom, setZoom] = useState(0);
+  const [torch, setTorch] = useState(false);
+  // expo-camera has no focus-point API, so what a tap can do is ask the camera
+  // to run its autofocus again: dropping the mode and restoring it next frame
+  // is what makes it re-converge on whatever is in front of it now. Small
+  // print on a till roll needs that far more often than a normal photo does.
+  const [focusing, setFocusing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function refocus() {
+    setFocusing(true);
+    setTimeout(() => setFocusing(false), 120);
+  }
+
+  /**
+   * Pinch to zoom, on RN's own PanResponder rather than a gesture library:
+   * this is the only gesture in the app, and PanResponder sees both touches
+   * without needing a provider at the root of the tree.
+   *
+   * The pinch is tracked as a ratio against the distance the fingers started
+   * at, so a given spread means the same amount of zoom wherever it begins.
+   */
+  const pinch = useMemo(() => {
+    let startDistance = 0;
+    let startZoom = 0;
+
+    const distance = (touches: { pageX: number; pageY: number }[]) =>
+      Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY);
+
+    return PanResponder.create({
+      onStartShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 2,
+      onMoveShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 2,
+      onPanResponderGrant: (e) => {
+        const touches = e.nativeEvent.touches;
+        if (touches.length === 2) {
+          startDistance = distance(touches);
+          startZoom = zoom;
+        }
+      },
+      onPanResponderMove: (e) => {
+        const touches = e.nativeEvent.touches;
+        if (touches.length !== 2 || startDistance <= 0) return;
+        // A quarter of the spread ratio: the full range is only 0 to 1, and
+        // mapping it one-to-one makes the zoom impossible to place.
+        const next = startZoom + (distance(touches) / startDistance - 1) * 0.25;
+        setZoom(Math.min(1, Math.max(0, next)));
+      },
+      onPanResponderRelease: () => {
+        startDistance = 0;
+      },
+    });
+  }, [zoom]);
 
   async function handle(uri: string) {
     if (!household) return;
@@ -80,7 +131,24 @@ export default function CameraScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+      <CameraView
+        ref={cameraRef}
+        style={StyleSheet.absoluteFill}
+        facing="back"
+        zoom={zoom}
+        enableTorch={torch}
+        autofocus={focusing ? 'off' : 'on'}
+      />
+
+      {/* Above the camera, below the chrome: a tap anywhere on the frame
+          re-runs autofocus, which is the gesture people already expect. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Focus"
+        onPress={refocus}
+        style={StyleSheet.absoluteFill}
+        {...pinch.panHandlers}
+      />
 
       {/* Mode is chosen before the shot because it changes what the model is
           asked to do -- read a till roll, or identify objects. */}
@@ -96,11 +164,43 @@ export default function CameraScreen() {
           />
           <Text style={{ fontSize: 12, color: t.inkFaint, marginTop: space.sm, lineHeight: 17 }}>
             {kind === 'receipt'
-              ? 'Lay the receipt flat and fill the frame. Small print is what the scan reads.'
-              : 'Get the packaging labels in shot — weights and volumes come from them.'}
+              ? 'Lay the receipt flat and fill the frame. Small print is what the scan reads. Pinch to zoom, tap to refocus.'
+              : 'Get the packaging labels in shot — weights and volumes come from them. Pinch to zoom, tap to refocus.'}
           </Text>
         </View>
       </View>
+
+      {/* Torch and zoom, out of the way of the frame. Zoom has buttons as well
+          as the pinch: a receipt on a table is often a one-handed job. */}
+      {busy ? null : (
+        <View
+          style={{
+            position: 'absolute',
+            right: space.lg,
+            top: insets.top + 150,
+            gap: space.sm,
+            alignItems: 'center' }}>
+          <Chip
+            icon={torch ? 'flashlight' : 'flashlight-outline'}
+            label={torch ? 'Turn the light off' : 'Turn the light on'}
+            active={torch}
+            onPress={() => setTorch((on) => !on)}
+          />
+          <Chip icon="add" label="Zoom in" onPress={() => setZoom((z) => Math.min(1, z + 0.1))} />
+          <View
+            style={{
+              backgroundColor: '#0009',
+              borderRadius: radius.pill,
+              paddingHorizontal: 8,
+              paddingVertical: 4 }}>
+            <Text style={{ color: '#fff', fontSize: 11, fontFamily: fonts.semibold, fontVariant: ['tabular-nums'] }}>
+              {zoom === 0 ? '1×' : `${(1 + zoom * 9).toFixed(1)}×`}
+            </Text>
+          </View>
+          <Chip icon="remove" label="Zoom out" onPress={() => setZoom((z) => Math.max(0, z - 0.1))} />
+          {zoom > 0 ? <Chip icon="refresh" label="Reset zoom" onPress={() => setZoom(0)} /> : null}
+        </View>
+      )}
 
       {error ? (
         <View style={{ position: 'absolute', left: space.lg, right: space.lg, bottom: insets.bottom + 190 }}>
@@ -155,5 +255,36 @@ export default function CameraScreen() {
         )}
       </View>
     </View>
+  );
+}
+
+/** A round control over the camera preview. Fixed to the dark frame rather
+ *  than the theme: there is no light-mode version of a viewfinder. */
+function Chip({
+  icon,
+  label,
+  active,
+  onPress }: {
+  icon: IconName;
+  label: string;
+  active?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => ({
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: active ? '#fff' : '#0009',
+        opacity: pressed ? 0.6 : 1 })}>
+      <Icon name={icon} size={20} color={active ? '#111' : '#fff'} />
+    </Pressable>
   );
 }

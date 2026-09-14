@@ -23,6 +23,7 @@ type HouseholdContextValue = {
   createHousehold: (name: string, size: number) => Promise<void>;
   joinHousehold: (inviteCode: string) => Promise<void>;
   savePreferences: (prefs: Preferences) => Promise<void>;
+  leaveHousehold: () => Promise<{ deleted: boolean; members_left: number }>;
 };
 
 const HouseholdContext = createContext<HouseholdContextValue | null>(null);
@@ -112,9 +113,40 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     [refresh]
   );
 
+  /**
+   * Leaving drops the membership; the database decides what that means for the
+   * household itself, since only it can see whether anyone is left. Refreshing
+   * afterwards is what sends the root layout back to the setup screen.
+   */
+  const leaveHousehold = useCallback(async () => {
+    const { data, error } = await supabase.rpc('leave_household');
+    if (error) throw error;
+    await refresh();
+    return data as { deleted: boolean; members_left: number };
+  }, [refresh]);
+
   const value = useMemo<HouseholdContextValue>(
-    () => ({ household, role, profile, loading, refresh, createHousehold, joinHousehold, savePreferences }),
-    [household, role, profile, loading, refresh, createHousehold, joinHousehold, savePreferences]
+    () => ({
+      household,
+      role,
+      profile,
+      loading,
+      refresh,
+      createHousehold,
+      joinHousehold,
+      savePreferences,
+      leaveHousehold }),
+    [
+      household,
+      role,
+      profile,
+      loading,
+      refresh,
+      createHousehold,
+      joinHousehold,
+      savePreferences,
+      leaveHousehold,
+    ]
   );
 
   return <HouseholdContext.Provider value={value}>{children}</HouseholdContext.Provider>;

@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,10 +18,15 @@ export default function HouseholdScreen() {
   const { createHousehold, joinHousehold } = useHousehold();
   const { signOut } = useSession();
 
-  const [mode, setMode] = useState<Mode>('create');
+  // stockpot://household?code=K7RM2P -- what the share sheet sends. Arriving
+  // with a code means the answer to "create or join" is already known, so the
+  // screen opens on the join side with the field filled in.
+  const { code: invited } = useLocalSearchParams<{ code?: string }>();
+
+  const [mode, setMode] = useState<Mode>(invited ? 'join' : 'create');
   const [name, setName] = useState('');
   const [size, setSize] = useState('2');
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState((invited ?? '').toUpperCase());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,7 +113,11 @@ export default function HouseholdScreen() {
               autoCapitalize="characters"
               autoCorrect={false}
               maxLength={6}
-              hint="Ask whoever set up the household — it is on their inventory screen."
+              hint={
+                invited
+                  ? 'Filled in from the invite you opened. Tap join and you are in.'
+                  : 'Ask whoever is already in it — it is on their pantry screen, and in Preferences.'
+              }
             />
           )}
         </Card>

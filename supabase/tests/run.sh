@@ -42,4 +42,7 @@ psql -q -v ON_ERROR_STOP=1 -f supabase/tests/07_meal_times_smoke.sql
 
 echo "running shelf life smoke test"
 psql -q -v ON_ERROR_STOP=1 -f supabase/tests/08_shelf_life_smoke.sql
+
+echo "running leave household smoke test"
+psql -q -v ON_ERROR_STOP=1 -f supabase/tests/09_leave_household_smoke.sql
 echo "all checks passed"

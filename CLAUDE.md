@@ -93,6 +93,15 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   quantities. Anything later has to fork through `adapt_recipe`.
 - **Moving a meal is not a stock operation.** `reschedule_slot` touches no
   reservation, and derives `notify_at` rather than leaving it behind.
+- **A saved password goes in the device keystore, never AsyncStorage.**
+  `src/lib/credentials.ts` keeps the email in AsyncStorage (not a secret) and
+  the password only in expo-secure-store, only when asked for. It is
+  deliberately *not* cleared on sign-out — surviving that is the whole point;
+  unticking the box is what forgets it.
+- **Leaving a household is the database's decision to finish.** `leave_household`
+  drops the membership, promotes the longest-standing member if that left it
+  ownerless, and deletes the household only when nobody is left — an orphaned
+  household is unreachable by every policy in the schema.
 - **Realtime channels get a unique topic** via `uniqueChannelTopic()`, and their
   effect depends only on the id it is keyed to. `supabase.channel(topic)` hands
   back an existing channel for a repeated topic, and adding listeners to an

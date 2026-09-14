@@ -4,14 +4,14 @@ import { ScrollView, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Alert } from 'react-native';
+import { Alert, Share } from 'react-native';
 
 import { Body, Button, Card, Chips, Eyebrow, ErrorNote, Segmented, TimeField, Title } from '@/components/ui/kit';
 import { errorMessage } from '@/lib/supabase';
 import { CUISINES, DEFAULT_MEAL_TIMES, DIET_TYPES, GOALS, type MealTimes } from '@/lib/types';
 import { useHousehold } from '@/providers/household-provider';
 import { useSession } from '@/providers/session-provider';
-import { space } from '@/theme/tokens';
+import { fonts, space } from '@/theme/tokens';
 import { useThemeMode, useTokens } from '@/theme/use-tokens';
 import type { ThemeMode } from '@/theme/theme-provider';
 
@@ -24,7 +24,7 @@ export default function PreferencesScreen() {
   const t = useTokens();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { profile, savePreferences } = useHousehold();
+  const { household, profile, savePreferences, leaveHousehold } = useHousehold();
   const { signOut } = useSession();
   const { mode, setMode } = useThemeMode();
 
@@ -35,6 +35,51 @@ export default function PreferencesScreen() {
   const [mealTimes, setMealTimes] = useState<MealTimes>(profile?.meal_times ?? DEFAULT_MEAL_TIMES);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * The invite goes out as a link and the code in plain text together. The
+   * link only works on a phone that already has Stockpot -- a custom scheme
+   * cannot install anything -- so the code has to be readable on its own for
+   * everybody else.
+   */
+  async function shareInvite() {
+    if (!household) return;
+    const link = `stockpot://household?code=${household.invite_code}`;
+    await Share.share({
+      message:
+        `Join our Stockpot pantry, "${household.name}".\n\n` +
+        `Invite code: ${household.invite_code}\n\n` +
+        `If you already have the app, this opens it straight to the right screen:\n${link}`,
+    }).catch(() => undefined);
+  }
+
+  function confirmLeave() {
+    if (!household) return;
+    Alert.alert(
+      `Leave ${household.name}?`,
+      'You go back to the setup screen, where you can start a new household or join one with a code. ' +
+        'If anyone else is still in this one, its pantry, plans and history stay with them — but if you are the ' +
+        'last member, all of it is deleted and cannot be recovered.',
+      [
+        { text: 'Stay', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const result = await leaveHousehold();
+              // The root layout routes to the setup screen on the next render,
+              // so there is nothing to navigate to from here.
+              if (result.deleted) {
+                Alert.alert('Household deleted', 'You were the last member, so everything in it went with it.');
+              }
+            } catch (e) {
+              setError(errorMessage(e));
+            }
+          } },
+      ]
+    );
+  }
 
   async function save() {
     setBusy(true);
@@ -166,6 +211,26 @@ export default function PreferencesScreen() {
         Preferences are yours, not the household&apos;s — two people sharing a pantry can want different things from
         it.
       </Text>
+
+      {first || !household ? null : (
+        <Card>
+          <View style={{ gap: space.md }}>
+            <Eyebrow>Household</Eyebrow>
+            <View style={{ gap: 2 }}>
+              <Text style={{ fontSize: 16, fontFamily: fonts.semibold, color: t.ink }}>{household.name}</Text>
+              <Text style={{ fontSize: 12.5, color: t.inkFaint, letterSpacing: 1.5, fontVariant: ['tabular-nums'] }}>
+                {household.invite_code}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
+              Anyone with this code shares the same pantry, plans and shopping list — the code is the whole
+              invitation, so send it only to people you want in your kitchen.
+            </Text>
+            <Button label="Send an invite" variant="secondary" onPress={() => void shareInvite()} />
+            <Button label="Leave this household" variant="danger" onPress={confirmLeave} />
+          </View>
+        </Card>
+      )}
 
       {/* Nothing is stored only on this device, so signing out loses nothing --
           but it is still a door people press by accident on the way past. */}

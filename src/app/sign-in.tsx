@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Body, Button, ErrorNote, Field, Title } from '@/components/ui/kit';
+import { Body, Button, ErrorNote, Field, Title, Toggle } from '@/components/ui/kit';
+import { forgetPassword, loadRemembered, remember } from '@/lib/credentials';
 import { errorMessage, supabase } from '@/lib/supabase';
 import { space } from '@/theme/tokens';
 import { useTokens } from '@/theme/use-tokens';
@@ -16,9 +17,28 @@ export default function SignInScreen() {
   const [mode, setMode] = useState<Mode>('sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [savePassword, setSavePassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Filling the form from what was kept last time. The password only comes
+  // back if it was saved, and the tick follows it so unticking is the way to
+  // forget it.
+  useEffect(() => {
+    let live = true;
+    void loadRemembered().then((saved) => {
+      if (!live) return;
+      if (saved.email) setEmail(saved.email);
+      if (saved.password) {
+        setPassword(saved.password);
+        setSavePassword(true);
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   async function submit() {
     setError(null);
@@ -42,6 +62,11 @@ export default function SignInScreen() {
           : await supabase.auth.signUp(credentials);
 
       if (authError) throw authError;
+
+      // Only ever written after the credentials are known to work, so a
+      // mistyped password is never the one waiting here next time.
+      if (data.session) await remember(credentials.email, savePassword ? password : null);
+      else if (!savePassword) await forgetPassword();
 
       // With email confirmation switched on, sign-up returns a user but no
       // session. Say so plainly instead of appearing to hang.
@@ -95,6 +120,16 @@ export default function SignInScreen() {
             autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
             textContentType={mode === 'sign-in' ? 'password' : 'newPassword'}
             placeholder="At least 8 characters"
+          />
+
+          <Toggle
+            label="Keep me signed in on this phone"
+            hint="Your password is kept in this phone's secure keystore, so signing back in is one tap. Turn it off to forget it."
+            value={savePassword}
+            onChange={(next) => {
+              setSavePassword(next);
+              if (!next) void forgetPassword();
+            }}
           />
 
           <ErrorNote message={error} />

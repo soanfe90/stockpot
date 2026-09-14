@@ -7,9 +7,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Card, ErrorNote, Eyebrow, Icon, Loading } from '@/components/ui/kit';
 import { savePlanAsTemplate } from '@/lib/library';
 import { remindersAvailable, scheduleReminders } from '@/lib/notifications';
-import { addPlanGaps, approvePlan, cancelPlan, loadPlan, loadSchedule, mealLabel } from '@/lib/planning';
+import {
+  addPlanGaps,
+  approvePlan,
+  cancelPlan,
+  generatePlan,
+  loadPlan,
+  loadSchedule,
+  mealLabel,
+} from '@/lib/planning';
 import { errorMessage } from '@/lib/supabase';
-import type { MealPlan, PlanShortfall, ScheduledMeal } from '@/lib/types';
+import { DEFAULT_MEAL_TIMES, type MealPlan, type PlanShortfall, type ScheduledMeal } from '@/lib/types';
 import { formatQty } from '@/lib/units';
 import { useHousehold } from '@/providers/household-provider';
 import { fonts, radius, space } from '@/theme/tokens';
@@ -19,7 +27,7 @@ export default function ReviewPlanScreen() {
   const t = useTokens();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { household } = useHousehold();
+  const { household, profile } = useHousehold();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [plan, setPlan] = useState<MealPlan | null>(null);
@@ -105,6 +113,52 @@ export default function ReviewPlanScreen() {
           }
         } },
     ]);
+  }
+
+  /**
+   * Starting over: the old plan is cancelled and a fresh one generated over
+   * the same days. Cancelling first is what gives the reservations back, so
+   * the new plan is built against the full pantry rather than against what
+   * the plan it replaces had already spoken for.
+   */
+  function startOver() {
+    if (!id || !plan || !household) return;
+    Alert.alert(
+      'Start this plan over?',
+      approved
+        ? 'These meals are dropped and their ingredients released, then a new plan is built over the same days.'
+        : 'These meals are dropped and a new plan is built over the same days. Nothing has been taken from your pantry.',
+      [
+        { text: 'Keep this one', style: 'cancel' },
+        {
+          text: 'Start over',
+          style: 'destructive',
+          onPress: async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              await cancelPlan(id);
+              const result = await generatePlan(
+                household.id,
+                plan.scope,
+                plan.starts_on,
+                {
+                  diets: profile?.diet_types ?? [],
+                  cuisines: profile?.cuisines ?? [],
+                  goals: profile?.goals ?? [],
+                  servings: meals[0]?.servings ?? 2 },
+                profile?.meal_times ?? DEFAULT_MEAL_TIMES
+              );
+              router.replace(`/plan/${result.plan_id}`);
+            } catch (e) {
+              // The old plan is already gone by this point, so say so rather
+              // than leaving them on a screen whose meals no longer exist.
+              setError(`${errorMessage(e)} The previous plan was already cleared — try generating a new one.`);
+              setBusy(false);
+            }
+          } },
+      ]
+    );
   }
 
   function discard() {
@@ -233,11 +287,15 @@ export default function ReviewPlanScreen() {
           borderTopWidth: StyleSheet.hairlineWidth * 2,
           borderTopColor: t.line }}>
         {approved ? (
-          <Button label="Save to library as a reusable plan" variant="secondary" onPress={saveAsTemplate} />
+          <>
+            <Button label="Save to library as a reusable plan" variant="secondary" onPress={saveAsTemplate} />
+            <Button label="Start this plan over" variant="ghost" onPress={startOver} busy={busy} />
+          </>
         ) : (
           <>
             <Button label="Approve and reserve ingredients" onPress={approve} busy={busy} />
-            <Button label="Save to library as a reusable plan" variant="secondary" onPress={saveAsTemplate} />
+            <Button label="Start this plan over" variant="secondary" onPress={startOver} busy={busy} />
+            <Button label="Save to library as a reusable plan" variant="ghost" onPress={saveAsTemplate} />
             <Button label="Discard" variant="ghost" onPress={discard} />
           </>
         )}
