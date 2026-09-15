@@ -1,4 +1,6 @@
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+
+import { backOr } from '@/lib/navigation';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
@@ -257,7 +259,7 @@ export default function ProductScreen() {
           onPress: async () => {
             const { error: deleteError } = await supabase.from('product').delete().eq('id', product.id);
             if (deleteError) setError(errorMessage(deleteError));
-            else router.back();
+            else backOr(router, '/');
           } },
       ]
     );

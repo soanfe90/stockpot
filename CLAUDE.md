@@ -55,6 +55,12 @@ Expiry-driven pantry and meal planning. React Native (Expo SDK 57) + Supabase.
   top. Hold the text in state while editing, write through on a valid parse, and
   drop the draft on blur — `TimeField`, the draft row and the purchase review all
   do this.
+- **Never call `router.back()` bare.** Use `backOr(router, fallback)` from
+  `src/lib/navigation.ts`. Most screens are pushed, but Settings is *replaced*
+  into by the signup gate and several screens can be opened from a deep link or
+  a cold start — going back from the bottom of the stack is a no-op that logs
+  "GO_BACK was not handled by any navigator" and strands the user on a screen
+  whose Cancel does nothing.
 - **A floating bottom bar measures itself.** Use `useFloatingBar()` with
   `<FloatingBar>` from the kit and give the scroll `bar.clearance`; never type a
   number into `paddingBottom` under a pinned bar. Every screen used to guess,

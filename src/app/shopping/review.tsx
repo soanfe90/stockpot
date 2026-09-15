@@ -1,4 +1,6 @@
 import { useRouter } from 'expo-router';
+
+import { backOr } from '@/lib/navigation';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
@@ -104,7 +106,7 @@ export default function ReviewPurchaseScreen() {
           busy={busy}
           disabled={!checked.length}
         />
-        <Button label="Back to the list" variant="ghost" onPress={() => router.back()} />
+        <Button label="Back to the list" variant="ghost" onPress={() => backOr(router, '/list')} />
       </ScrollView>
     </KeyboardAvoidingView>
   );

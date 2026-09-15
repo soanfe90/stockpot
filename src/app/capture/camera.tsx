@@ -1,6 +1,8 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
+
+import { backOr } from '@/lib/navigation';
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
@@ -144,7 +146,7 @@ export default function CameraScreen() {
         </Body>
         <Button label="Allow camera" onPress={() => void requestPermission()} />
         <Button label="Choose a photo instead" variant="secondary" onPress={() => void pick()} />
-        <Button label="Cancel" variant="ghost" onPress={() => router.back()} />
+        <Button label="Cancel" variant="ghost" onPress={() => backOr(router, '/')} />
       </View>
     );
   }
@@ -298,7 +300,7 @@ export default function CameraScreen() {
               <Chip icon="images-outline" label="Choose a photo instead" onPress={() => void pick()} />
             </View>
             <View style={{ flexDirection: 'row', gap: space.lg }}>
-              <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
+              <Pressable accessibilityRole="button" onPress={() => backOr(router, '/')} hitSlop={10}>
                 <Text style={{ color: '#fff9', fontSize: 14, fontFamily: fonts.semibold }}>Cancel</Text>
               </Pressable>
             </View>

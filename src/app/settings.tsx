@@ -1,4 +1,6 @@
 import { useRouter } from 'expo-router';
+
+import { backOr } from '@/lib/navigation';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -167,7 +169,7 @@ export default function SettingsScreen() {
     try {
       await savePreferences({ diets, cuisines, goals, mealTimes, shoppingDays, llmModel, plannedMeals });
       if (first) router.replace('/');
-      else router.back();
+      else backOr(router, '/');
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -434,7 +436,7 @@ export default function SettingsScreen() {
           // again on every launch.
           <Button label="Skip for now" variant="ghost" onPress={() => void save()} />
         ) : (
-          <Button label="Cancel" variant="ghost" onPress={() => router.back()} />
+          <Button label="Cancel" variant="ghost" onPress={() => backOr(router, '/')} />
         )}
       </FloatingBar>
     </View>

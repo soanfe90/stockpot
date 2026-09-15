@@ -1,4 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+
+import { backOr } from '@/lib/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
@@ -123,7 +125,7 @@ export default function MealScreen() {
               servings: meal.servings,
             }, profile?.llm_model ?? null);
             // The old slot is gone, so there is nothing here to come back to.
-            router.back();
+            backOr(router, '/plan');
           }).finally(() => setSwapping(false));
         },
       },

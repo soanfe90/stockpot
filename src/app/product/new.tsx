@@ -1,4 +1,6 @@
 import { useRouter } from 'expo-router';
+
+import { backOr } from '@/lib/navigation';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { Text } from '@/components/ui/text';
@@ -137,7 +139,7 @@ export default function NewProductScreen() {
         if (stockError) throw stockError;
       }
 
-      router.back();
+      backOr(router, '/');
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -234,7 +236,7 @@ export default function NewProductScreen() {
 
         <View style={{ gap: space.sm }}>
           <Button label="Add to inventory" onPress={save} busy={busy} />
-          <Button label="Cancel" variant="ghost" onPress={() => router.back()} />
+          <Button label="Cancel" variant="ghost" onPress={() => backOr(router, '/')} />
         </View>
 
         <Body>

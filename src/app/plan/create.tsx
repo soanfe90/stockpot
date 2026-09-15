@@ -1,4 +1,6 @@
 import { useNavigation, useRouter } from 'expo-router';
+
+import { backOr } from '@/lib/navigation';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { Text } from '@/components/ui/text';
@@ -224,7 +226,7 @@ export default function CreatePlanScreen() {
 
         <View style={{ gap: space.sm }}>
           <Button label="Generate plan" onPress={generate} busy={busy} />
-          <Button label="Cancel" variant="ghost" onPress={() => router.back()} />
+          <Button label="Cancel" variant="ghost" onPress={() => backOr(router, '/plan')} />
         </View>
 
         <Text style={{ fontSize: 12, color: t.inkFaint, lineHeight: 17 }}>
