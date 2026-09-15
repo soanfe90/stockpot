@@ -104,3 +104,32 @@ test('what is left today is what the picker offers', () => {
   assert.deepEqual(mealsLeftToday(THREE, times, at(9)), ['lunch', 'dinner']);
   assert.deepEqual(mealsLeftToday(THREE, times, at(23)), []);
 });
+
+/* --------------------------------------------- what the create screen shows -- */
+
+/**
+ * The create screen decides three things from these two helpers: which days to
+ * offer, which meals to offer, and what the plan will contain. The bug worth
+ * pinning is the one where the answer is "nothing", because that is what made
+ * a control vanish with no explanation.
+ */
+test('late in the day there is nothing left to start at', () => {
+  // Which is why the screen must not offer today at all, rather than offering
+  // it and then showing an empty meal picker.
+  assert.deepEqual(mealsLeftToday(THREE, times, at(23)), []);
+  assert.deepEqual(
+    planShape({ days: 1, meals: THREE, mealTimes: times, startsToday: true, nowMinutes: at(23) }),
+    []
+  );
+});
+
+test('starting tomorrow instead, every meal is available again', () => {
+  const shape = planShape({ days: 1, meals: THREE, mealTimes: times, startsToday: false, nowMinutes: at(23) });
+  assert.deepEqual(shape.map((s) => s.category), THREE);
+});
+
+test('one meal left is still a choice worth showing', () => {
+  // Half past seven: dinner only. The picker has one option, and saying "this
+  // starts at dinner" is more use than showing nothing.
+  assert.deepEqual(mealsLeftToday(THREE, times, at(19) + 30), ['dinner']);
+});

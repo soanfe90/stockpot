@@ -58,6 +58,16 @@ export default function CreatePlanScreen() {
   const startsToday = startsOn === today();
   const available = startsToday ? mealsLeftToday(meals, mealTimes) : meals;
 
+  // Today is only on offer while some of it is left. Offering a day the plan
+  // cannot start on is worse than not offering it.
+  const dayOptions = [
+    ...(mealsLeftToday(meals, mealTimes).length ? [{ value: today(), label: 'Today' }] : []),
+    ...(nextFree && nextFree !== today() ? [{ value: nextFree, label: formatDate(nextFree) }] : []),
+    ...(nextFree === today() && !mealsLeftToday(meals, mealTimes).length
+      ? [{ value: tomorrow(), label: formatDate(tomorrow()) }]
+      : []),
+  ];
+
   const shape =
     startsOn === null
       ? []
@@ -95,9 +105,15 @@ export default function CreatePlanScreen() {
       // Defaulting to the free day keeps a new plan from competing with one
       // that already exists; the choice below is what makes it a default
       // rather than a decision taken on the user's behalf.
-      setStartsOn(day);
+      //
+      // Except when that day is today and today is over: a plan cannot start
+      // at a meal that has already happened, so it starts tomorrow. Leaving it
+      // on today was how this screen came to show no starting-meal choice at
+      // all -- the control had nothing to offer, so it silently disappeared.
+      const nothingLeft = mealsLeftToday(meals, mealTimes).length === 0;
+      setStartsOn(day === today() && nothingLeft ? tomorrow() : day);
     });
-  }, [household]);
+  }, [household, meals, mealTimes]);
   const [error, setError] = useState<string | null>(null);
 
   async function generate() {
@@ -159,14 +175,11 @@ export default function CreatePlanScreen() {
             Every suggestion comes from what is actually in your pantry, working through whatever is closest to
             expiring first.
           </Body>
-          {startsOn && nextFree && nextFree !== today() ? (
+          {startsOn && dayOptions.length > 1 ? (
             <View style={{ gap: space.sm, paddingTop: space.xs }}>
               <Segmented
                 label="Starting"
-                options={[
-                  { value: today(), label: 'Today' },
-                  { value: nextFree, label: formatDate(nextFree) },
-                ]}
+                options={dayOptions}
                 value={startsOn}
                 onChange={(day) => {
                   setStartsOn(day);
@@ -183,7 +196,9 @@ export default function CreatePlanScreen() {
               </Text>
             </View>
           ) : startsOn ? (
-            <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>Starting today.</Text>
+            <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
+              {startsToday ? 'Starting today.' : `Starting ${formatDate(startsOn)}.`}
+            </Text>
           ) : null}
 
           {/* Offered whenever there is more than one meal to choose between,
@@ -191,7 +206,7 @@ export default function CreatePlanScreen() {
               today AND two meals were still ahead -- which meant that with any
               plan already scheduled, where the start date defaults to the next
               free day, it never appeared at all. */}
-          {available.length > 1 ? (
+          {startsOn && available.length ? (
             <View style={{ gap: space.sm, paddingTop: space.xs }}>
               <Segmented
                 label="Beginning at"
@@ -288,6 +303,10 @@ export default function CreatePlanScreen() {
 function listOf(items: string[]): string {
   if (items.length <= 1) return items[0] ?? '';
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+function tomorrow(): string {
+  return addDays(today(), 1);
 }
 
 function addDays(iso: string, days: number): string {
