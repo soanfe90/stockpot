@@ -49,10 +49,36 @@ export default function CreatePlanScreen() {
   const abort = useRef<AbortController | null>(null);
   const navigation = useNavigation();
 
-  const leftToday = mealsLeftToday(
-    profile?.planned_meals ?? DEFAULT_PLANNED_MEALS,
-    profile?.meal_times ?? DEFAULT_MEAL_TIMES
-  );
+  const meals = profile?.planned_meals ?? DEFAULT_PLANNED_MEALS;
+  const mealTimes = profile?.meal_times ?? DEFAULT_MEAL_TIMES;
+
+  // Starting today, only what is still ahead can be chosen. Starting later,
+  // the whole day is available -- somebody may be out until the evening on the
+  // day their plan begins.
+  const startsToday = startsOn === today();
+  const available = startsToday ? mealsLeftToday(meals, mealTimes) : meals;
+
+  const shape =
+    startsOn === null
+      ? []
+      : planShape({
+          days: scope === 'week' ? 7 : 1,
+          meals,
+          mealTimes,
+          startsToday,
+          firstMeal: firstMeal ?? (startsToday ? null : available[0] ?? null),
+        });
+
+  const firstDay = shape.filter((slot) => slot.day_offset === 0);
+  const shapeNote = !startsOn
+    ? null
+    : shape.length === 0
+      ? 'Every meal you plan has already passed today. Start on another day, or add meals in Settings.'
+      : `${shape.length} meal${shape.length === 1 ? '' : 's'}: ${listOf(
+          firstDay.map((slot) => MEAL_SLOTS.find((m) => m.value === slot.category)?.label.toLowerCase() ?? slot.category)
+        )}${startsToday ? ' today' : ' on the first day'}${
+          scope === 'week' ? `, then the same each day to ${formatDate(addDays(startsOn, 6))}` : ''
+        }.`;
 
   // The cover blocks the screen, but the header sits above it in the native
   // stack -- so the way out has to be taken off the header too, or the lock is
@@ -79,16 +105,12 @@ export default function CreatePlanScreen() {
     const controller = new AbortController();
     abort.current = controller;
 
+    // The very shape the screen has been describing. Recomputing it here would
+    // let the preview and the request drift apart, which is the one thing a
+    // preview must never do.
     const from = startsOn ?? (await nextFreeDay(household.id));
-    const shape = planShape({
-      days: scope === 'week' ? 7 : 1,
-      meals: profile?.planned_meals ?? DEFAULT_PLANNED_MEALS,
-      mealTimes: profile?.meal_times ?? DEFAULT_MEAL_TIMES,
-      startsToday: from === today(),
-      firstMeal,
-    });
     if (shape.length === 0) {
-      setError('Every meal you plan has already passed today. Start tomorrow, or pick a later meal.');
+      setError('Every meal you plan has already passed today. Start on another day, or add meals in Settings.');
       return;
     }
     setBusy(true);
@@ -105,7 +127,7 @@ export default function CreatePlanScreen() {
           servings: Math.max(1, Number.parseInt(servings, 10) || 2) },
         // Sent with the request rather than read server-side, so a plan lands
         // at the times this member actually eats at, on this device's clock.
-        profile?.meal_times ?? DEFAULT_MEAL_TIMES,
+        mealTimes,
         // A week plan is built around the days this member can actually shop;
         // the review screen can rebuild it on different ones before approving.
         profile?.shopping_days ?? DEFAULT_SHOPPING_DAYS,
@@ -146,7 +168,13 @@ export default function CreatePlanScreen() {
                   { value: nextFree, label: formatDate(nextFree) },
                 ]}
                 value={startsOn}
-                onChange={setStartsOn}
+                onChange={(day) => {
+                  setStartsOn(day);
+                  // A meal chosen for one day may not exist on the other -- a
+                  // lunch picked for tomorrow is already gone if the plan moves
+                  // to today -- so the choice is made again rather than carried.
+                  setFirstMeal(null);
+                }}
               />
               <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
                 {startsOn === today()
@@ -158,27 +186,32 @@ export default function CreatePlanScreen() {
             <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>Starting today.</Text>
           ) : null}
 
-          {/* Only when starting today, and only when part of the day is still
-              ahead: a plan that begins at breakfast is wrong at seven in the
-              evening, and the clock already knows that. This is for overriding
-              it -- somebody who has eaten lunch but wants to start at dinner
-              rather than have Stockpot decide. */}
-          {startsOn === today() && leftToday.length > 1 ? (
+          {/* Offered whenever there is more than one meal to choose between,
+              on any start day. It used to appear only when the plan started
+              today AND two meals were still ahead -- which meant that with any
+              plan already scheduled, where the start date defaults to the next
+              free day, it never appeared at all. */}
+          {available.length > 1 ? (
             <View style={{ gap: space.sm, paddingTop: space.xs }}>
               <Segmented
                 label="Beginning at"
-                options={leftToday.map((m) => ({
+                options={available.map((m) => ({
                   value: m,
                   label: MEAL_SLOTS.find((s) => s.value === m)?.label ?? m,
                 }))}
-                value={firstMeal ?? leftToday[0]}
+                value={firstMeal ?? available[0]}
                 onChange={setFirstMeal}
               />
-              <Text style={{ fontSize: 12.5, color: t.inkFaint, lineHeight: 18 }}>
-                Meals whose time has already passed today are left out — there is no use planning this morning's
-                breakfast.
-              </Text>
             </View>
+          ) : null}
+
+          {/* What you are about to get, said plainly. The shape is decided by
+              three things at once -- the meals you plan, the day, and the clock
+              -- so it should never have to be inferred from the controls. */}
+          {shapeNote ? (
+            <Text style={{ fontSize: 12.5, color: t.inkMuted, lineHeight: 18, paddingTop: space.xs }}>
+              {shapeNote}
+            </Text>
           ) : null}
         </View>
 
@@ -249,4 +282,16 @@ export default function CreatePlanScreen() {
       ) : null}
     </KeyboardAvoidingView>
   );
+}
+
+/** "lunch and dinner", "breakfast, lunch and dinner". */
+function listOf(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
